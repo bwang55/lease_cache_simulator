@@ -3,6 +3,7 @@ use rand::distributions::WeightedIndex;
 use rand::prelude::ThreadRng;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fs::File;
 use std::io;
 use std::ops::DerefMut;
 
@@ -10,6 +11,101 @@ struct Sampler {
     random: RefCell<ThreadRng>,
     distribution: WeightedIndex<f64>,
     source: Vec<u64>,
+}
+
+struct LeaseTable{
+    table: HashMap<u64, (u64, u64, f64)>,
+}
+
+impl LeaseTable {
+    fn read_lease_look_up_table_from_csv(file_path: &str) -> LeaseTable {
+        let file = File::open(file_path).unwrap();
+        let mut rdr = csv::ReaderBuilder::new()
+            .from_reader(file);
+        let mut result: HashMap<u64, (u64, u64, f64)> = HashMap::new();
+        for results in rdr.records() {
+            let record = results.expect("Error reading CSV record");
+            let access_tag = record[0].parse::<u64>().unwrap();
+            let short = record[1].parse::<u64>().unwrap();
+            let long = record[2].parse::<u64>().unwrap();
+            let short_prob = record[3].parse::<f64>().unwrap();
+            result.insert(access_tag, (short, long, short_prob));
+        }
+        LeaseTable {
+            table: result,
+        }
+    }
+
+    fn new(filename : &str) -> LeaseTable{
+        LeaseTable::read_lease_look_up_table_from_csv(filename)
+    }
+
+}
+
+
+
+struct CacheBlock{
+    size: u64,
+    address: u64,
+    remainingLease: u64,
+    tenancy: u64,
+}
+
+struct CacheSet{
+    size: u64,
+    blocks: Vec<CacheBlock>,
+}
+
+struct Cache{
+    size: u64,
+    sets: Vec<CacheSet>,
+}
+
+impl Cache{
+    fn new(size: u64, associativity: u64) -> Cache{
+        let mut sets: Vec<CacheSet> = Vec::new();
+        for _ in 0..size/associativity{
+            sets.push(CacheSet::new(associativity));
+        }
+        Cache{
+            size,
+            sets,
+        }
+    }
+}
+
+
+impl CacheSet {
+    fn new(size: u64) -> CacheSet{
+        let mut blocks: Vec<CacheBlock> = Vec::new();
+        for _ in 0..size{
+            blocks.push(CacheBlock::new());
+        }
+        CacheSet{
+            size,
+            blocks,
+        }
+    }
+}
+
+
+impl CacheBlock{
+    fn new() -> CacheBlock{
+        CacheBlock{
+            size: 0,
+            address: 0,
+            remainingLease: 0,
+            tenancy: 0,
+        }
+    }
+
+
+    fn readFromTable(&self, address: u64) -> bool{
+        if self.address == address{
+            return true;
+        }
+        return false;
+    }
 }
 
 
@@ -152,9 +248,14 @@ fn write(output: Vec<u64>){
 
 
 fn main() {
-
-    let test = input_to_hashmap();
-    let test_1 = caching(Sampler::new(test.0.into_iter()), 10, 0.005, test.1);
-    write(test_1);
-
+    //
+    // let test = input_to_hashmap();
+    // let test_1 = caching(Sampler::new(test.0.into_iter()), 10, 0.005, test.1);
+    // write(test_1);
+    let file_path = "./fakeTable.csv";
+    let testTable = LeaseTable::new(file_path);
+    //print out the test table
+    for i in testTable.table.iter(){
+        println!("1");
+    }
 }
