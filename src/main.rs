@@ -42,7 +42,45 @@ impl LeaseTable {
 
 }
 
+struct traceItem{
+    access_tag: u64,
+    reference: u64,
+}
 
+impl traceItem{
+    fn new(access_tag: u64, reference: u64) -> traceItem{
+        traceItem{
+            access_tag,
+            reference,
+        }
+    }
+}
+
+struct trace{
+    accesses: Vec<traceItem>,
+}
+
+impl trace{
+    fn read_from_csv(file_path: &str) -> trace {
+        let file = File::open(file_path).unwrap();
+        let mut rdr = csv::ReaderBuilder::new()
+            .from_reader(file);
+        let mut result: Vec<traceItem> = Vec::new();
+        for results in rdr.records() {
+            let record = results.expect("Error reading CSV record");
+            let access_tag = record[0].parse::<u64>().unwrap();
+            let reference = record[1].parse::<u64>().unwrap();
+            result.push(traceItem::new(access_tag, reference));
+        }
+        trace {
+            accesses: result,
+        }
+    }
+
+    fn new(filename : &str) -> trace{
+        trace::read_from_csv(filename)
+    }
+}
 
 struct CacheBlock{
     size: u64,
