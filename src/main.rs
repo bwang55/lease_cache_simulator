@@ -1,11 +1,12 @@
-use rand::distributions::Distribution;
-use rand::distributions::WeightedIndex;
-use rand::prelude::ThreadRng;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::ops::DerefMut;
+
+use rand::distributions::Distribution;
+use rand::distributions::WeightedIndex;
+use rand::prelude::ThreadRng;
 
 struct Sampler {
     random: RefCell<ThreadRng>,
@@ -13,7 +14,7 @@ struct Sampler {
     source: Vec<u64>,
 }
 
-struct LeaseTable{
+struct LeaseTable {
     table: HashMap<u64, (u64, u64, f64)>,
 }
 
@@ -36,57 +37,53 @@ impl LeaseTable {
         }
     }
 
-    fn new(filename : &str) -> LeaseTable{
+    fn new(filename: &str) -> LeaseTable {
         LeaseTable::read_lease_look_up_table_from_csv(filename)
     }
-
-
-
-
 }
 
-struct traceItem{
+struct TraceItem {
     access_tag: u64,
     reference: u64,
 }
 
-impl traceItem{
-    fn new(access_tag: u64, reference: u64) -> traceItem{
-        traceItem{
+impl TraceItem {
+    fn new(access_tag: u64, reference: u64) -> TraceItem {
+        TraceItem {
             access_tag,
             reference,
         }
     }
 }
 
-struct trace{
-    accesses: Vec<traceItem>,
+struct Trace {
+    accesses: Vec<TraceItem>,
 }
 
-impl trace{
-    fn read_from_csv(file_path: &str) -> trace {
+impl Trace {
+    fn read_from_csv(file_path: &str) -> Trace {
         let file = File::open(file_path).unwrap();
         let mut rdr = csv::ReaderBuilder::new()
             .from_reader(file);
-        let mut result: Vec<traceItem> = Vec::new();
+        let mut result: Vec<TraceItem> = Vec::new();
         for results in rdr.records() {
             let record = results.expect("Error reading CSV record");
             let access_tag = record[0].parse::<u64>().unwrap();
             let reference = record[1].parse::<u64>().unwrap();
-            result.push(traceItem::new(access_tag, reference));
+            result.push(TraceItem::new(access_tag, reference));
         }
-        trace {
+        Trace {
             accesses: result,
         }
     }
 
-    fn new(filename : &str) -> trace{
-        trace::read_from_csv(filename)
+    fn new(filename: &str) -> Trace {
+        Trace::read_from_csv(filename)
     }
 
-    fn query_for_lease(&self, access_tag: u64) -> Result<(u64, u64, f64), (u64, u64, f64)>{
-        for item in &self.accesses{
-            if item.access_tag == access_tag{
+    fn query_for_lease(&self, access_tag: u64) -> Result<(u64, u64, f64), (u64, u64, f64)> {
+        for item in &self.accesses {
+            if item.access_tag == access_tag {
                 return Ok((item.access_tag, item.reference, 0.0));
             }
         }
@@ -94,35 +91,34 @@ impl trace{
     }
 }
 
-struct CacheBlock{
+struct CacheBlock {
     size: u64,
     address: u64,
     tag: u64,
-    setIndex: u64,
-    BlockOffset: u64,
-    remainingLease: u64,
+    set_index: u64,
+    block_offset: u64,
+    remaining_lease: u64,
     tenancy: u64,
 }
 
-struct CacheSet{
+struct CacheSet {
     size: u64,
     blocks: Vec<CacheBlock>,
 }
 
-struct Cache{
+struct Cache {
     size: u64,
     sets: Vec<CacheSet>,
 }
 
 
-
 impl CacheSet {
-    fn new(size: u64) -> CacheSet{
+    fn new(size: u64) -> CacheSet {
         let mut blocks: Vec<CacheBlock> = Vec::new();
-        for _ in 0..size{
+        for _ in 0..size {
             blocks.push(CacheBlock::new());
         }
-        CacheSet{
+        CacheSet {
             size,
             blocks,
         }
@@ -130,22 +126,22 @@ impl CacheSet {
 }
 
 
-impl CacheBlock{
-    fn new() -> CacheBlock{
-        CacheBlock{
+impl CacheBlock {
+    fn new() -> CacheBlock {
+        CacheBlock {
             size: 0,
             address: 0,
             tag: 0,
-            setIndex: 0,
-            BlockOffset: 0,
-            remainingLease: 0,
+            set_index: 0,
+            block_offset: 0,
+            remaining_lease: 0,
             tenancy: 0,
         }
     }
 
 
-    fn readFromTable(&self, address: u64) -> bool{
-        if self.address == address{
+    fn read_from_table(&self, address: u64) -> bool {
+        if self.address == address {
             return true;
         }
         return false;
@@ -229,42 +225,22 @@ impl Cache {
         let mut block = &mut set.blocks[0];
         block.address = address;
         block.tenancy = tenancy;
-        block.remainingLease = lease;
+        block.remaining_lease = lease;
     }
 }
 
 
-fn pack_to_cacheBlock(input: traceItem, offset: u64, set: u64, trace: trace) -> Result<CacheBlock, CacheBlock>{
-
+fn pack_to_cache_block(input: TraceItem, offset: u64, set: u64, trace: Trace) -> Result<CacheBlock, CacheBlock> {
     let mut result = CacheBlock::new();
     result.address = input.access_tag;
-    result.BlockOffset = input.access_tag & ((1 << offset) - 1);
-    result.setIndex = (input.access_tag >> offset) & ((1 << set) - 1);
+    result.block_offset = input.access_tag & ((1 << offset) - 1);
+    result.set_index = (input.access_tag >> offset) & ((1 << set) - 1);
     result.tag = input.access_tag >> (offset + set);
     let lease = trace.query_for_lease(input.reference).expect("Error in query lease for the access");
-    result.remainingLease = lease.0;
+    result.remaining_lease = lease.0;
     result.tenancy = 0;
     Ok(result)
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 // fn caching(ten_dist: Sampler, _cache_size: u64, _delta: f64, length:usize) -> Vec<u64> {
@@ -322,11 +298,11 @@ fn pack_to_cacheBlock(input: traceItem, offset: u64, set: u64, trace: trace) -> 
 fn input_to_hashmap() -> (HashMap<u64, f64>, usize) {
     let mut rdr = csv::ReaderBuilder::new()
         .from_reader(io::stdin());
-    let mut _result:HashMap<u64, f64> = HashMap::new();
+    let mut _result: HashMap<u64, f64> = HashMap::new();
     let mut largest = 0;
     for result in rdr.records() {
         let record = result.unwrap();
-        if record.get(0).unwrap().parse::<usize>().unwrap() > largest{
+        if record.get(0).unwrap().parse::<usize>().unwrap() > largest {
             largest = record.get(0).unwrap().parse().unwrap();
         }
         _result.insert(record.get(0).unwrap().parse().unwrap(), record.get(1).unwrap().parse().unwrap());
@@ -335,12 +311,12 @@ fn input_to_hashmap() -> (HashMap<u64, f64>, usize) {
 }
 
 
-fn write(output: Vec<u64>){
+fn write(output: Vec<u64>) {
     let sum = get_sum(&output);
     let mut wtr = csv::Writer::from_writer(io::stdout());
-    let mut index:usize = 0;
+    let mut index: usize = 0;
     wtr.write_record(&["DCS", "probability"]).expect("cannot write");
-    for key in output{
+    for key in output {
         wtr.write_record(&[index.to_string(), ((key as f64) / sum as f64).to_string()]).expect("cannot write");
         index += 1;
     }
@@ -353,9 +329,9 @@ fn main() {
     // let test_1 = caching(Sampler::new(test.0.into_iter()), 10, 0.005, test.1);
     // write(test_1);
     let file_path = "./fakeTable.csv";
-    let testTable = LeaseTable::new(file_path);
+    let test_table = LeaseTable::new(file_path);
     //print out the test table
-    for i in testTable.table.iter(){
+    for _i in test_table.table.iter() {
         println!("1");
     }
 }
