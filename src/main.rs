@@ -40,6 +40,9 @@ impl LeaseTable {
         LeaseTable::read_lease_look_up_table_from_csv(filename)
     }
 
+
+
+
 }
 
 struct traceItem{
@@ -80,11 +83,23 @@ impl trace{
     fn new(filename : &str) -> trace{
         trace::read_from_csv(filename)
     }
+
+    fn query_for_lease(&self, access_tag: u64) -> Result<(u64, u64, f64), (u64, u64, f64)>{
+        for item in &self.accesses{
+            if item.access_tag == access_tag{
+                return Ok((item.access_tag, item.reference, 0.0));
+            }
+        }
+        Err((0, 0, 0.0))
+    }
 }
 
 struct CacheBlock{
     size: u64,
     address: u64,
+    tag: u64,
+    setIndex: u64,
+    BlockOffset: u64,
     remainingLease: u64,
     tenancy: u64,
 }
@@ -99,18 +114,6 @@ struct Cache{
     sets: Vec<CacheSet>,
 }
 
-impl Cache{
-    fn new(size: u64, associativity: u64) -> Cache{
-        let mut sets: Vec<CacheSet> = Vec::new();
-        for _ in 0..size/associativity{
-            sets.push(CacheSet::new(associativity));
-        }
-        Cache{
-            size,
-            sets,
-        }
-    }
-}
 
 
 impl CacheSet {
@@ -132,6 +135,9 @@ impl CacheBlock{
         CacheBlock{
             size: 0,
             address: 0,
+            tag: 0,
+            setIndex: 0,
+            BlockOffset: 0,
             remainingLease: 0,
             tenancy: 0,
         }
@@ -147,114 +153,170 @@ impl CacheBlock{
 }
 
 
-impl Sampler {
-    fn new<T: Iterator<Item = (u64, f64)>>(t: T) -> Sampler {
-        let r = RefCell::new(rand::thread_rng());
-        let vector: Vec<(u64, f64)> = t.into_iter().collect(); //Guarantees our index ordering.
-        let distribution = WeightedIndex::new(vector.iter().map(|(_, weight)| *weight)).unwrap();
-        let source = vector.into_iter().map(|(item, _)| item).collect();
-
-        Sampler {
-            random: r,
-            distribution,
-            source,
-        }
-    }
-
-    fn sample(&self) -> u64 {
-        let index = self
-            .distribution
-            .sample(self.random.borrow_mut().deref_mut());
-        self.source[index]
-    }
-}
-
-struct Simulator {
-    size: u64,
-    tracker: HashMap<u64, u64>,
-    step: u64,
-}
-
-impl Simulator {
-    fn init() -> Simulator {
-        Simulator {
-            size: 0,
-            tracker: HashMap::new(),
-            step: 0,
-        }
-    }
-
-    fn add_tenancy(&mut self, tenancy: u64) {
-        self.update();
-        self.size += 1;
-        let target = tenancy + self.step;
-        let expirations_at_step = self.tracker.get(&target).copied().unwrap_or(0);
-        self.tracker.insert(target, expirations_at_step + 1);
-    }
-
-    fn update(&mut self) {
-        self.step += 1;
-        self.size -= self.tracker.remove(&self.step).unwrap_or(0);
-    }
-
-
-    fn _get_size(&self) -> u64 {
-        self.size
-    }
-}
-
-
-
-fn caching(ten_dist: Sampler, _cache_size: u64, _delta: f64, length:usize) -> Vec<u64> {
-    let mut cache = Simulator::init();
-    let samples_to_issue: u64 = length as u64;
-    let mut prev_output: Vec<u64> = vec![0; length + 1];
-    let mut dcsd_observed = vec![0; length + 1];
-    let mut time = 0;
-    loop {
-
-        //this part of code is for warmup cycles, but currently unused.
-        if time >= 0{
-            break
-        }
-        let tenancy = ten_dist.sample();
-        cache.add_tenancy(tenancy);
-        time += 1;
-    }
-
+// impl Sampler {
+//     fn new<T: Iterator<Item = (u64, f64)>>(t: T) -> Sampler {
+//         let r = RefCell::new(rand::thread_rng());
+//         let vector: Vec<(u64, f64)> = t.into_iter().collect(); //Guarantees our index ordering.
+//         let distribution = WeightedIndex::new(vector.iter().map(|(_, weight)| *weight)).unwrap();
+//         let source = vector.into_iter().map(|(item, _)| item).collect();
 //
-    let mut cycles = 0;
-    loop {
-        if cycles > 100000{//this is the main loop, larger numbers of loop gives higher precisions
-            return dcsd_observed.clone();
-        }
-        for _ in 0..samples_to_issue -1 {
-            let tenancy = ten_dist.sample();
-            cache.add_tenancy(tenancy);
-            dcsd_observed[cache.size as usize] += 1;
-        }
+//         Sampler {
+//             random: r,
+//             distribution,
+//             source,
+//         }
+//     }
+//
+//     fn sample(&self) -> u64 {
+//         let index = self
+//             .distribution
+//             .sample(self.random.borrow_mut().deref_mut());
+//         self.source[index]
+//     }
+// }
 
-        prev_output = dcsd_observed.clone();
-        cycles += 1;
+// struct Simulator {
+//     size: u64,
+//     tracker: HashMap<u64, u64>,
+//     step: u64,
+// }
+//
+// impl Simulator {
+//     fn init() -> Simulator {
+//         Simulator {
+//             size: 0,
+//             tracker: HashMap::new(),
+//             step: 0,
+//         }
+//     }
+//
+//     fn add_tenancy(&mut self, tenancy: u64) {
+//         self.update();
+//         self.size += 1;
+//         let target = tenancy + self.step;
+//         let expirations_at_step = self.tracker.get(&target).copied().unwrap_or(0);
+//         self.tracker.insert(target, expirations_at_step + 1);
+//     }
+//
+//     fn update(&mut self) {
+//         self.step += 1;
+//         self.size -= self.tracker.remove(&self.step).unwrap_or(0);
+//     }
+//
+//
+//     fn _get_size(&self) -> u64 {
+//         self.size
+//     }
+// }
+
+
+impl Cache {
+    fn new(size: u64, associativity: u64) -> Cache {
+        let mut sets: Vec<CacheSet> = Vec::new();
+        for _ in 0..size / associativity {
+            sets.push(CacheSet::new(associativity));
+        }
+        Cache {
+            size,
+            sets,
+        }
+    }
+
+
+    fn insert(&mut self, address: u64, tenancy: u64, lease: u64) {
+        let set_index = address % self.size;
+        let mut set = &mut self.sets[set_index as usize];
+        let mut block = &mut set.blocks[0];
+        block.address = address;
+        block.tenancy = tenancy;
+        block.remainingLease = lease;
     }
 }
 
 
-fn get_sum(input:&Vec<u64>) -> u128{
-    let mut sum:u128 = 0;
-    let mut index:usize = 0;
-    for k in input{
-        sum += *k as u128;
-        if index == input.len(){
-            break;
-        }
-        index += 1;
-    }
-    if sum == 0{
-        return 1;
-    }
-    return sum;
+fn pack_to_cacheBlock(input: traceItem, offset: u64, set: u64, trace: trace) -> Result<CacheBlock, CacheBlock>{
+
+    let mut result = CacheBlock::new();
+    result.address = input.access_tag;
+    result.BlockOffset = input.access_tag & ((1 << offset) - 1);
+    result.setIndex = (input.access_tag >> offset) & ((1 << set) - 1);
+    result.tag = input.access_tag >> (offset + set);
+    let lease = trace.query_for_lease(input.reference).expect("Error in query lease for the access");
+    result.remainingLease = lease.0;
+    result.tenancy = 0;
+    Ok(result)
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// fn caching(ten_dist: Sampler, _cache_size: u64, _delta: f64, length:usize) -> Vec<u64> {
+//     let mut cache = Simulator::init();
+//     let samples_to_issue: u64 = length as u64;
+//     let mut prev_output: Vec<u64> = vec![0; length + 1];
+//     let mut dcsd_observed = vec![0; length + 1];
+//     let mut time = 0;
+//     loop {
+//
+//         //this part of code is for warmup cycles, but currently unused.
+//         if time >= 0{
+//             break
+//         }
+//         let tenancy = ten_dist.sample();
+//         cache.add_tenancy(tenancy);
+//         time += 1;
+//     }
+//
+// //
+//     let mut cycles = 0;
+//     loop {
+//         if cycles > 100000{//this is the main loop, larger numbers of loop gives higher precisions
+//             return dcsd_observed.clone();
+//         }
+//         for _ in 0..samples_to_issue -1 {
+//             let tenancy = ten_dist.sample();
+//             cache.add_tenancy(tenancy);
+//             dcsd_observed[cache.size as usize] += 1;
+//         }
+//
+//         prev_output = dcsd_observed.clone();
+//         cycles += 1;
+//     }
+// }
+
+
+// fn get_sum(input:&Vec<u64>) -> u128{
+//     let mut sum:u128 = 0;
+//     let mut index:usize = 0;
+//     for k in input{
+//         sum += *k as u128;
+//         if index == input.len(){
+//             break;
+//         }
+//         index += 1;
+//     }
+//     if sum == 0{
+//         return 1;
+//     }
+//     return sum;
+// }
 
 
 fn input_to_hashmap() -> (HashMap<u64, f64>, usize) {
