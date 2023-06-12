@@ -21,17 +21,20 @@ struct LeaseTable {
 impl LeaseTable {
     fn read_lease_look_up_table_from_csv(file_path: &str) -> LeaseTable {
         let file = File::open(file_path).unwrap();
-        let mut rdr = csv::ReaderBuilder::new()
-            .from_reader(file);
+        let mut rdr = csv::ReaderBuilder::new().from_reader(file);
         let mut result: HashMap<u64, (u64, u64, f64)> = HashMap::new();
+
         for results in rdr.records() {
             let record = results.expect("Error reading CSV record");
-            let access_tag = record[0].parse::<u64>().unwrap();
-            let short = record[1].parse::<u64>().unwrap();
-            let long = record[2].parse::<u64>().unwrap();
-            let short_prob = record[3].parse::<f64>().unwrap();
-            result.insert(access_tag, (short, long, short_prob));
+
+            let access_tag = u64::from_str_radix(&record[0], 16).expect("Error parsing access_tag");
+            let short_lease = u64::from_str_radix(&record[1], 16).expect("Error parsing short_lease");
+            let long_lease = u64::from_str_radix(&record[2], 16).expect("Error parsing long_lease");
+            let short_prob = record[3].parse::<f64>().expect("Error parsing short_prob");
+
+            result.insert(access_tag, (short_lease, long_lease, short_prob));
         }
+
         LeaseTable {
             table: result,
         }
@@ -122,6 +125,21 @@ impl CacheSet {
             size,
             blocks,
         }
+    }
+
+    fn push(&mut self, block: CacheBlock) {
+        //if cache is full, evict
+        if self.blocks.len() == self.size as usize {
+            Self::evict();
+            self.blocks.push(block);
+        }else {
+            self.blocks.push(block);
+        }
+    }
+
+    fn evict() -> CacheBlock{
+        //Todo: implement eviction policy
+        return CacheBlock::new();
     }
 }
 
@@ -219,14 +237,11 @@ impl Cache {
     }
 
 
-    fn insert(&mut self, address: u64, tenancy: u64, lease: u64) {
-        let set_index = address % self.size;
-        let mut set = &mut self.sets[set_index as usize];
-        let mut block = &mut set.blocks[0];
-        block.address = address;
-        block.tenancy = tenancy;
-        block.remaining_lease = lease;
+    fn insert(&mut self, block: CacheBlock) {//read binary set_index and decide which set to insert
+        let set_index = block.set_index as usize;
+        self.sets[set_index].push(block);
     }
+
 }
 
 
@@ -241,6 +256,7 @@ fn pack_to_cache_block(input: TraceItem, offset: u64, set: u64, trace: Trace) ->
     result.tenancy = 0;
     Ok(result)
 }
+
 
 
 // fn caching(ten_dist: Sampler, _cache_size: u64, _delta: f64, length:usize) -> Vec<u64> {
