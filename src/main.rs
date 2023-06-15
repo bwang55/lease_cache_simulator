@@ -8,6 +8,7 @@ struct LeaseTable {
 }
 
 impl LeaseTable {
+
     fn read_lease_look_up_table_from_csv(file_path: &str) -> LeaseTable {
         let file = File::open(file_path).unwrap();
         let mut rdr = csv::ReaderBuilder::new().from_reader(file);
@@ -16,17 +17,15 @@ impl LeaseTable {
         for results in rdr.records() {
             let record = results.expect("Error reading CSV record");
 
-            let access_tag = u64::from_str_radix(&record[0], 10).expect("Error parsing access_tag");
-            let short_lease = u64::from_str_radix(&record[1], 10).expect("Error parsing short_lease");
-            let long_lease = u64::from_str_radix(&record[2], 10).expect("Error parsing long_lease");
+            let access_tag = u64::from_str_radix(&record[0][2..], 16).expect("Error parsing access_tag");
+            let short_lease = u64::from_str_radix(&record[1][2..], 16).expect("Error parsing short_lease");
+            let long_lease = u64::from_str_radix(&record[2][2..], 16).expect("Error parsing long_lease");
             let short_prob = record[3].parse::<f64>().expect("Error parsing short_prob");
 
             result.insert(access_tag, (short_lease, long_lease, short_prob));
         }
 
-        LeaseTable {
-            table: result,
-        }
+        LeaseTable { table: result }
     }
 
     fn new(filename: &str) -> LeaseTable {
@@ -37,7 +36,6 @@ impl LeaseTable {
         self.table.get(&access_tag).map(|x| *x)
     }
 }
-
 
 struct TraceItem {
     access_tag: u64,
@@ -60,24 +58,20 @@ struct Trace {
 impl Trace {
     fn read_from_csv(file_path: &str) -> Trace {
         let file = File::open(file_path).unwrap();
-        let mut rdr = csv::ReaderBuilder::new()
-            .from_reader(file);
+        let mut rdr = csv::ReaderBuilder::new().from_reader(file);
         let mut result: Vec<TraceItem> = Vec::new();
         for results in rdr.records() {
             let record = results.expect("Error reading CSV record");
-            let access_tag = record[0].parse::<u64>().unwrap();
-            let reference = record[1].parse::<u64>().unwrap();
+            let access_tag = u64::from_str_radix(&record[0][2..], 16).expect("Error parsing access_tag");
+            let reference = u64::from_str_radix(&record[1][2..], 16).expect("Error parsing reference");
             result.push(TraceItem::new(access_tag, reference));
         }
-        Trace {
-            accesses: result,
-        }
+        Trace { accesses: result }
     }
 
     fn new(filename: &str) -> Trace {
         Trace::read_from_csv(filename)
     }
-
 }
 
 #[derive(Debug)]
@@ -102,17 +96,13 @@ struct Cache {
     step: u64,
 }
 
-
 impl CacheSet {
     fn new(size: u64) -> CacheSet {
         let mut blocks: Vec<CacheBlock> = Vec::new();
         for _ in 0..size {
             blocks.push(CacheBlock::new());
         }
-        CacheSet {
-            size,
-            blocks,
-        }
+        CacheSet { size, blocks }
     }
 
     fn push(&mut self, block: CacheBlock) {
@@ -120,17 +110,16 @@ impl CacheSet {
         if self.blocks.len() == self.size as usize {
             Self::evict();
             self.blocks.push(block);
-        }else {
+        } else {
             self.blocks.push(block);
         }
     }
 
-    fn evict() -> CacheBlock{
+    fn evict() -> CacheBlock {
         //Todo: implement eviction policy
         return CacheBlock::new();
     }
 }
-
 
 impl CacheBlock {
     fn new() -> CacheBlock {
@@ -150,7 +139,6 @@ impl CacheBlock {
     // }
 }
 
-
 impl Cache {
     fn new(size: u64, associativity: u64) -> Cache {
         let mut sets: Vec<CacheSet> = Vec::new();
@@ -164,8 +152,8 @@ impl Cache {
         }
     }
 
-
-    fn insert(&mut self, block: CacheBlock) {//read binary set_index and decide which set to insert
+    fn insert(&mut self, block: CacheBlock) {
+        //read binary set_index and decide which set to insert
         let set_index = block.set_index as usize;
         self.sets[set_index].push(block);
     }
@@ -181,30 +169,35 @@ impl Cache {
     }
 }
 
-
-fn pack_to_cache_block(input: &TraceItem, offset: u64, set: u64, table: LeaseTable) -> Result<CacheBlock, CacheBlock> {
+fn pack_to_cache_block(
+    input: &TraceItem,
+    offset: u64,
+    set: u64,
+    table: LeaseTable,
+) -> Result<CacheBlock, CacheBlock> {
     let mut result = CacheBlock::new();
     result.address = input.access_tag;
     result.block_offset = input.access_tag & ((1 << offset) - 1);
     result.set_index = (input.access_tag >> offset) & ((1 << set) - 1);
     result.tag = input.access_tag >> (offset + set);
-    let lease = table.query(&input.reference).expect("Error in query lease for the access");
+    let lease = table
+        .query(&input.reference)
+        .expect("Error in query lease for the access");
     result.remaining_lease = lease.0;
     result.tenancy = 0;
     Ok(result)
 }
 
-
 fn main() {
     let file_path = "./fakeTable.csv";
     let test_table = LeaseTable::new(file_path);
-    print!("{:?}", test_table.table);
+    print!("{:x?}", test_table.table);
 
     let trace_path = "./trace.csv";
     let test_trace = Trace::new(trace_path);
     test_trace.accesses.iter().for_each(|x| {
-        println!("{:?}", x.access_tag);
-        println!("{:?}", x.reference);
+        println!("{:x?}", x.access_tag);
+        println!("{:x?}", x.reference);
     });
 
     let x = test_table.query(&test_trace.accesses[0].reference);
@@ -212,5 +205,4 @@ fn main() {
 
     // let test = pack_to_cache_block(&test_trace.accesses[0], 2, 1, test_table);
     // test.unwrap().print();
-
 }

@@ -1,4 +1,4 @@
 access label, shrot lease, long lease, shortlease Probability
-1,5,20,0.1
-2,40,60,0.5
-3,100,200,0.9
+0x001,0x005,0x020,0.1
+0x002,0x040,0x060,0.5
+0x003,0x100,0x200,0.9
