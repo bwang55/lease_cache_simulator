@@ -139,7 +139,7 @@ impl CacheSet {
         let mut index = 0;
         while index < self.blocks.len() {
             let remaining_lease = self.blocks[index].remaining_lease;
-            if remaining_lease == 1 {
+            if remaining_lease <= 1 {
                 self.blocks.remove(index);
             } else {
                 self.blocks[index].remaining_lease -= 1;
