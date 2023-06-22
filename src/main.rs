@@ -1,6 +1,9 @@
+use clap::{Arg, Command};
 use rand::Rng;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
+use std::io;
+use std::io::Write;
 
 //read lease table from csv file and store it in a hashmap, waiting for further query
 struct LeaseTable {
@@ -89,17 +92,36 @@ struct CacheBlock {
     tenancy: u64,
 }
 
+impl CacheBlock {
+    fn new() -> CacheBlock {
+        CacheBlock {
+            _size: 0,
+            address: 0,
+            tag: 0,
+            set_index: 0,
+            block_offset: 0,
+            remaining_lease: 0,
+            tenancy: 0,
+        }
+    }
+
+    fn print(&self) {
+        println!(
+            "address: {:b}, tag: {:b}, set_index: {:b}, block_offset: {:b}, remaining_lease: {}, tenancy: {}",
+            self.address,
+            self.tag,
+            self.set_index,
+            self.block_offset,
+            self.remaining_lease,
+            self.tenancy
+        );
+    }
+}
+
 struct CacheSet {
     block_num: u64,
     blocks: Vec<CacheBlock>,
     forced_eviction: u64,
-}
-
-struct Cache {
-    size: u64,
-    sets: Vec<CacheSet>,
-    step: u64,
-    forced_eviction_counter: u64,
 }
 
 impl CacheSet {
@@ -150,30 +172,11 @@ impl CacheSet {
     }
 }
 
-impl CacheBlock {
-    fn new() -> CacheBlock {
-        CacheBlock {
-            _size: 0,
-            address: 0,
-            tag: 0,
-            set_index: 0,
-            block_offset: 0,
-            remaining_lease: 0,
-            tenancy: 0,
-        }
-    }
-
-    fn print(&self) {
-        println!(
-            "address: {:b}, tag: {:b}, set_index: {:b}, block_offset: {:b}, remaining_lease: {}, tenancy: {}",
-            self.address,
-            self.tag,
-            self.set_index,
-            self.block_offset,
-            self.remaining_lease,
-            self.tenancy
-        );
-    }
+struct Cache {
+    size: u64,
+    sets: Vec<CacheSet>,
+    step: u64,
+    forced_eviction_counter: u64,
 }
 
 impl Cache {
@@ -201,28 +204,49 @@ impl Cache {
         self.forced_eviction_counter += self.sets[set_index].forced_eviction;
     }
 
-    fn print(&self) {
-        println!("The cache status:");
-        println!("******************************");
-        //caculate the total num of cache blocks in every set
+    fn print(&self, output_file: &str) -> io::Result<()> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(output_file)?;
+
+        writeln!(file, "The cache status:")?;
+        writeln!(file, "******************************")?;
+
+        // Calculate the total number of cache blocks in every set
         let mut total = 0;
         for set in &self.sets {
             total += set.blocks.len();
         }
-        //print out the current step, total num of cache blocks, and the total num of forced eviction
-        println!(
+
+        // Write the current step, total number of cache blocks, and the total number of forced eviction to the file
+        writeln!(
+            file,
             "step: {}, physical cache size: {}, num of forced eviction: {}",
             self.step, total, self.forced_eviction_counter
-        );
+        )?;
+
         for set in &self.sets {
-            println!("------------------------------");
+            writeln!(file, "------------------------------")?;
             for block in &set.blocks {
-                block.print();
+                writeln!(
+                    file,
+                    "address: {:b}, tag: {:b}, set_index: {:b}, block_offset: {:b}, remaining_lease: {}, tenancy: {}",
+                    block.address,
+                    block.tag,
+                    block.set_index,
+                    block.block_offset,
+                    block.remaining_lease,
+                    block.tenancy
+                )?;
             }
         }
+
         for _ in 0..2 {
-            println!();
+            writeln!(file)?;
         }
+
+        Ok(())
     }
 
     fn run_trace(&mut self, trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
@@ -230,7 +254,7 @@ impl Cache {
             let block = pack_to_cache_block(&item, offset, set, table)
                 .expect("Error in pack_to_cache_block");
             self.update(block);
-            self.print();
+            self.print("./test.txt").expect("TODO: panic message");
         }
     }
 }
@@ -262,25 +286,38 @@ fn pack_to_cache_block(
 }
 
 fn main() {
-    let file_path = "./fakeTable.csv";
+    let m = Command::new("CLAM Simulator")
+        .author("_intentionally leave for blank")
+        .version("1.0")
+        .arg(
+            Arg::new("trace")
+                .short('t')
+                .value_name("The path of trace file"),
+        )
+        .arg(
+            Arg::new("lease_table")
+                .short('l')
+                .value_name("The path of lease table file"),
+        );
+    let matches = m.get_matches();
+
+    let trace_path = matches
+        .get_one::<String>("trace")
+        .expect("Trace File Not Found");
+    let lease_table_path = matches
+        .get_one::<String>("lease_table")
+        .expect("lease_table File Not Found");
+
+    // let file_path = "./fakeTable.csv";
+    let file_path = lease_table_path.as_str();
+
     let test_table = LeaseTable::new(file_path);
 
-    let trace_path = "./trace.csv";
+    // let trace_path = "./trace.csv";
+
     let test_trace = Trace::new(trace_path);
 
     let mut test_cache = Cache::new(4, 2);
 
     test_cache.run_trace(test_trace, &test_table, 2, 1);
-
-    // let test = pack_to_cache_block(&test_trace.accesses[0], 2, 1, &test_table);
-    // let test2 = pack_to_cache_block(&test_trace.accesses[1], 2, 1, &test_table);
-    // let test3 = pack_to_cache_block(&test_trace.accesses[2], 2, 1, &test_table);
-    //
-    // let mut test_cache = Cache::new(4, 2);
-    // test_cache.update(test.unwrap());
-    // test_cache.print();
-    // test_cache.update(test2.unwrap());
-    // test_cache.print();
-    // test_cache.update(test3.unwrap());
-    // test_cache.print();
 }
