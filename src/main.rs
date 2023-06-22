@@ -1,5 +1,10 @@
+use clap::{Arg, Command};
+use rand::Rng;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
+use std::io;
+use std::io::Write;
+use std::process::Command;
 
 use rand::Rng;
 use crate::cache::{Cache, CacheBlock};
@@ -131,10 +136,35 @@ fn run_trace(mut cache: Cache, trace: Trace, table: &LeaseTable, offset: u64, se
 }
 
 fn main() {
-    let file_path = "./fakeTable.csv";
+    let m = Command::new("CLAM Simulator")
+        .author("_intentionally leave for blank")
+        .version("1.0")
+        .arg(
+            Arg::new("trace")
+                .short('t')
+                .value_name("The path of trace file"),
+        )
+        .arg(
+            Arg::new("lease_table")
+                .short('l')
+                .value_name("The path of lease table file"),
+        );
+    let matches = m.get_matches();
+
+    let trace_path = matches
+        .get_one::<String>("trace")
+        .expect("Trace File Not Found");
+    let lease_table_path = matches
+        .get_one::<String>("lease_table")
+        .expect("lease_table File Not Found");
+
+    // let file_path = "./fakeTable.csv";
+    let file_path = lease_table_path.as_str();
+
     let test_table = LeaseTable::new(file_path);
 
-    let trace_path = "./trace.csv";
+    // let trace_path = "./trace.csv";
+
     let test_trace = Trace::new(trace_path);
 
     let test_cache = Cache::new(4, 2);
