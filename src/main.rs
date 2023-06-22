@@ -1,6 +1,9 @@
-use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
+
+use rand::Rng;
+
+mod cache;
 
 //read lease table from csv file and store it in a hashmap, waiting for further query
 struct LeaseTable {
@@ -16,6 +19,7 @@ impl LeaseTable {
         for results in rdr.records() {
             let record = results.expect("Error reading CSV record");
 
+            // Convert the strings from base 16 to to numbers with base of 10
             let access_tag =
                 u64::from_str_radix(&record[0][2..], 16).expect("Error parsing access_tag");
             let short_lease =
@@ -23,6 +27,8 @@ impl LeaseTable {
             let long_lease =
                 u64::from_str_radix(&record[2][2..], 16).expect("Error parsing long_lease");
             let short_prob = record[3].parse::<f64>().expect("Error parsing short_prob");
+
+            // println!("access_tag: {:x}, short_lease: {:x}, long_lease: {:x}, short_prob: {}", access_tag, short_lease, long_lease, short_prob);
 
             result.insert(access_tag, (short_lease, long_lease, short_prob));
         }
@@ -89,69 +95,8 @@ struct CacheBlock {
     tenancy: u64,
 }
 
-struct CacheSet {
-    block_num: u64,
-    blocks: Vec<CacheBlock>,
-    forced_eviction: u64,
-}
-
-struct Cache {
-    size: u64,
-    sets: Vec<CacheSet>,
-    step: u64,
-    forced_eviction_counter: u64,
-}
-
-impl CacheSet {
-    fn new(size: u64) -> CacheSet {
-        CacheSet {
-            block_num: size,
-            blocks: Vec::new(),
-            forced_eviction: 0,
-        }
-    }
-
-    fn push_to_set(&mut self, block: CacheBlock) {
-        //if cacheBlock is in the cache, refresh it
-        for item in &mut self.blocks {
-            if item.tag == block.tag {
-                item.remaining_lease = block.remaining_lease;
-                return;
-            }
-        }
-        //if cache is full, evict
-        if self.blocks.len() == self.block_num as usize {
-            self.random_evict();
-            self.blocks.push(block);
-        } else {
-            self.blocks.push(block);
-        }
-    }
-
-    fn random_evict(&mut self) -> CacheBlock {
-        let mut rng = rand::thread_rng();
-        let index = rng.gen_range(0..self.blocks.len());
-        self.forced_eviction += 1;
-        self.blocks.remove(index)
-    }
-
-    fn update(&mut self) {
-        let mut index = 0;
-        while index < self.blocks.len() {
-            let remaining_lease = self.blocks[index].remaining_lease;
-            if remaining_lease <= 1 {
-                self.blocks.remove(index);
-            } else {
-                self.blocks[index].remaining_lease -= 1;
-                self.blocks[index].tenancy += 1;
-                index += 1;
-            }
-        }
-    }
-}
-
 impl CacheBlock {
-    fn new() -> CacheBlock {
+    pub fn new() -> CacheBlock {
         CacheBlock {
             _size: 0,
             address: 0,
@@ -163,7 +108,7 @@ impl CacheBlock {
         }
     }
 
-    fn print(&self) {
+    pub fn print(&self) {
         println!(
             "address: {:b}, tag: {:b}, set_index: {:b}, block_offset: {:b}, remaining_lease: {}, tenancy: {}",
             self.address,
@@ -176,25 +121,80 @@ impl CacheBlock {
     }
 }
 
+struct CacheSet {
+    block_num: u64,
+    blocks: Vec<CacheBlock>,
+    forced_eviction: u64,
+}
+
+impl CacheSet {
+    fn new(size: u64) -> CacheSet {
+        CacheSet {
+            block_num: size,
+            blocks: Vec::new(),
+            forced_eviction: 0,
+        }
+    }
+
+    /// push a cache block to the cache set. If the cache set is full, evict a cache block randomly. If the cache block is already in the cache, refresh it. Otherwise, push it to the cache set.
+    fn push_to_set(&mut self, new_block: CacheBlock) {
+        //if cacheBlock is in the cache, refresh it
+        for block in &mut self.blocks {
+            if block.tag == new_block.tag {
+                block.remaining_lease = new_block.remaining_lease;
+                return;
+            }
+        }
+
+
+        // if cache is full, evict
+        if self.blocks.len() == self.block_num as usize {
+            self.random_evict();
+            self.blocks.push(new_block);
+        } else {
+            self.blocks.push(new_block);
+        }
+    }
+
+    fn random_evict(&mut self) -> CacheBlock {
+        let mut rng = rand::thread_rng();
+        let index = rng.gen_range(0..self.blocks.len());
+        self.forced_eviction += 1;
+        self.blocks.remove(index)
+    }
+
+    /// update the remaining lease of each cache block in the cache set
+    fn update(&mut self) {
+        self.blocks.retain(|block| block.remaining_lease > 1);
+        self.blocks.iter_mut().for_each(|block| {
+            block.tenancy += 1;
+            block.remaining_lease -= 1;
+        });
+    }
+}
+
+struct Cache {
+    _size: u64,
+    sets: Vec<CacheSet>,
+    step: u64,
+    forced_eviction_counter: u64,
+}
+
 impl Cache {
     fn new(size: u64, associativity: u64) -> Cache {
-        let mut sets: Vec<CacheSet> = Vec::new();
-        for _ in 0..associativity {
-            sets.push(CacheSet::new(size / associativity));
-        }
+        let sets: Vec<CacheSet> = (0..associativity).map(|_| CacheSet::new(size / associativity)).collect();
         Cache {
-            size,
+            _size: size,
             sets,
             step: 0,
             forced_eviction_counter: 0,
         }
     }
 
+    /// update the cache status
     fn update(&mut self, block: CacheBlock) {
-        //update all cache blocks
-        for set in &mut self.sets {
-            set.update();
-        }
+        // update all cache blocks in all the sets
+        self.sets.iter_mut().for_each(|set| set.update());
         let set_index = block.set_index as usize;
         self.sets[set_index].push_to_set(block);
         self.step += 1;
@@ -204,25 +204,25 @@ impl Cache {
     fn print(&self) {
         println!("The cache status:");
         println!("******************************");
-        //caculate the total num of cache blocks in every set
+        //calculate the total num of cache blocks in every set
         let mut total = 0;
-        for set in &self.sets {
+        self.sets.iter().for_each(|set| {
             total += set.blocks.len();
-        }
+        });
+
         //print out the current step, total num of cache blocks, and the total num of forced eviction
         println!(
             "step: {}, physical cache size: {}, num of forced eviction: {}",
             self.step, total, self.forced_eviction_counter
         );
-        for set in &self.sets {
+
+        self.sets.iter().for_each(|set| {
             println!("------------------------------");
-            for block in &set.blocks {
-                block.print();
-            }
-        }
-        for _ in 0..2 {
-            println!();
-        }
+            set.blocks.iter().for_each(|block| block.print());
+        });
+
+        println!();
+        println!();
     }
 
     fn run_trace(&mut self, trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
@@ -243,8 +243,10 @@ fn pack_to_cache_block(
 ) -> Result<CacheBlock, CacheBlock> {
     let mut result = CacheBlock::new();
     result.address = input.access_tag;
-    result.block_offset = input.access_tag & ((1 << offset) - 1);
+    result.block_offset = input.access_tag & ((1 << offset) - 1); // ((1 << offset) - 1) = 11
+    println!("block_offset: {:b}, input.access_tag: {:b}, thing: {:b}", result.block_offset, input.access_tag, ((1 << offset) - 1));
     result.set_index = (input.access_tag >> offset) & ((1 << set) - 1);
+    println!("set_index: {:b}, input.access_tag: {:b}, thing: {:b}", result.set_index, input.access_tag, ((1 << set) - 1));
     result.tag = input.access_tag >> (offset + set);
     let lease = table
         .query(&input.reference)
