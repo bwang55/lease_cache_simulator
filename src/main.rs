@@ -1,12 +1,9 @@
+use std::collections::HashMap;
+use std::fs::File;
+
 use clap::{Arg, Command};
 use rand::Rng;
-use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
-use std::io;
-use std::io::Write;
-use std::process::Command;
 
-use rand::Rng;
 use crate::cache::{Cache, CacheBlock};
 
 mod cache;
@@ -100,9 +97,9 @@ fn pack_to_cache_block(
     let mut result = CacheBlock::new();
     result.address = input.access_tag;
     result.block_offset = input.access_tag & ((1 << offset) - 1); // ((1 << offset) - 1) = 11
-    println!("block_offset: {:b}, input.access_tag: {:b}, thing: {:b}", result.block_offset, input.access_tag, ((1 << offset) - 1));
+    // println!("block_offset: {:b}, input.access_tag: {:b}, thing: {:b}", result.block_offset, input.access_tag, ((1 << offset) - 1));
     result.set_index = (input.access_tag >> offset) & ((1 << set) - 1);
-    println!("set_index: {:b}, input.access_tag: {:b}, thing: {:b}", result.set_index, input.access_tag, ((1 << set) - 1));
+    // println!("set_index: {:b}, input.access_tag: {:b}, thing: {:b}", result.set_index, input.access_tag, ((1 << set) - 1));
     result.tag = input.access_tag >> (offset + set);
     let lease = table
         .query(&input.reference)
@@ -126,7 +123,7 @@ fn run_trace(mut cache: Cache, trace: Trace, table: &LeaseTable, offset: u64, se
         match result {
             Ok(block) => {
                 cache.update(block);
-                cache.print();
+                cache.print("./test.txt").expect("TODO: panic message");
             }
             Err(_) => {
                 println!("Error in packing cache block");
@@ -142,11 +139,11 @@ fn main() {
         .arg(
             Arg::new("trace")
                 .short('t')
-                .value_name("The path of trace file"),
+                .value_name("The path of trace file").default_value("./trace.csv"),
         )
         .arg(
             Arg::new("lease_table")
-                .short('l')
+                .short('l').default_value("./fakeTable.csv")
                 .value_name("The path of lease table file"),
         );
     let matches = m.get_matches();
@@ -154,12 +151,12 @@ fn main() {
     let trace_path = matches
         .get_one::<String>("trace")
         .expect("Trace File Not Found");
-    let lease_table_path = matches
+    let _lease_table_path = matches
         .get_one::<String>("lease_table")
         .expect("lease_table File Not Found");
 
-    // let file_path = "./fakeTable.csv";
-    let file_path = lease_table_path.as_str();
+    // let file_path = lease_table_path.as_str();
+    let file_path = "./fakeTable.csv";
 
     let test_table = LeaseTable::new(file_path);
 
@@ -171,16 +168,4 @@ fn main() {
 
     // test_cache.run_trace(test_trace, &test_table, 2, 1);
     run_trace(test_cache, test_trace, &test_table, 2, 1);
-
-    // let test = pack_to_cache_block(&test_trace.accesses[0], 2, 1, &test_table);
-    // let test2 = pack_to_cache_block(&test_trace.accesses[1], 2, 1, &test_table);
-    // let test3 = pack_to_cache_block(&test_trace.accesses[2], 2, 1, &test_table);
-    //
-    // let mut test_cache = Cache::new(4, 2);
-    // test_cache.update(test.unwrap());
-    // test_cache.print();
-    // test_cache.update(test2.unwrap());
-    // test_cache.print();
-    // test_cache.update(test3.unwrap());
-    // test_cache.print();
 }

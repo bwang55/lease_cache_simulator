@@ -1,4 +1,8 @@
+use std::io;
+use std::io::Write;
+
 use rand::Rng;
+
 // use crate::{LeaseTable, pack_to_cache_block, Trace};
 
 #[derive(Debug, Clone, Copy)]
@@ -25,8 +29,8 @@ impl CacheBlock {
         }
     }
 
-    pub fn print(&self) {
-        println!(
+    pub fn print(&self) -> String {
+        format!(
             "address: {:b}, tag: {:b}, set_index: {:b}, block_offset: {:b}, remaining_lease: {}, tenancy: {}",
             self.address,
             self.tag,
@@ -34,7 +38,7 @@ impl CacheBlock {
             self.block_offset,
             self.remaining_lease,
             self.tenancy
-        );
+        )
     }
 }
 
@@ -118,9 +122,15 @@ impl Cache {
         self.forced_eviction_counter += self.sets[set_index].forced_eviction;
     }
 
-    pub fn print(&self) {
-        println!("The cache status:");
-        println!("******************************");
+    pub fn print(&self, output_file: &str) -> io::Result<()> {
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(output_file)
+            .unwrap();
+
+        writeln!(file, "The cache status:")?;
+        writeln!(file, "******************************").unwrap();
         //calculate the total num of cache blocks in every set
         let mut total = 0;
         self.sets.iter().for_each(|set| {
@@ -128,26 +138,21 @@ impl Cache {
         });
 
         //print out the current step, total num of cache blocks, and the total num of forced eviction
-        println!(
+        writeln!(
+            file,
             "step: {}, physical cache size: {}, num of forced eviction: {}",
             self.step, total, self.forced_eviction_counter
-        );
+        ).unwrap();
 
         self.sets.iter().for_each(|set| {
-            println!("------------------------------");
-            set.blocks.iter().for_each(|block| block.print());
+            writeln!(file, "------------------------------").expect("TODO: panic message");
+            // set.blocks.iter().for_each(|block| block.print());
+            set.blocks.iter().for_each(|block| writeln!(file, "{}", block.print()).unwrap());
         });
 
-        println!();
-        println!();
-    }
+        // write two empty lines
+        writeln!(file, "\n\n")?;
 
-    // fn run_trace(&mut self, trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
-    //     for item in trace.accesses {
-    //         let block = pack_to_cache_block(&item, offset, set, table)
-    //             .expect("Error in pack_to_cache_block");
-    //         self.update(block);
-    //         self.print();
-    //     }
-    // }
+        Ok(())
+    }
 }
