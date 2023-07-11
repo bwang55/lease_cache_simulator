@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 use std::fs::File;
+use std::time::Instant;
 
 use clap::{Arg, Command};
 use rand::Rng;
 
 use crate::cache::{Cache, CacheBlock};
+use crate::virtualCache::VirtualCache;
 
 mod cache;
+mod virtualCache;
 
 //read lease table from csv file and store it in a hashmap, waiting for further query
 struct LeaseTable {
@@ -132,6 +135,23 @@ fn run_trace(mut cache: Cache, trace: Trace, table: &LeaseTable, offset: u64, se
     }
 }
 
+fn run_trace_virtual(mut cache: VirtualCache, trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
+    // let mut test_cache = cache;
+    for i in 0..trace.accesses.len() {
+        let result = pack_to_cache_block(&trace.accesses[i], offset, set, table);
+        match result {
+            Ok(block) => {
+                cache.update(block);
+                cache.print("./test.txt").expect("TODO: panic message");
+            }
+            Err(_) => {
+                println!("Error in packing cache block");
+            }
+        }
+    }
+}
+
+
 fn main() {
     let m = Command::new("CLAM Simulator")
         .author("_intentionally leave for blank")
@@ -145,27 +165,77 @@ fn main() {
             Arg::new("lease_table")
                 .short('l').default_value("./fakeTable.csv")
                 .value_name("The path of lease table file"),
+        )
+        .arg(
+            Arg::new("virtual")
+                .short('v')
+                .value_name("whether to use virtual cache")
+        )
+        .arg(
+            Arg::new("associativity")
+                .short('a')
+                .value_name("The associativity of the cache")
+                .default_value("4")
+        )
+        .arg(
+            Arg::new("offset")
+                .short('o')
+                .value_name("The length of the block offset")
+                .default_value("2")
+        )
+        .arg(
+            Arg::new("set")
+                .short('s')
+                .value_name("The length of set index")
+                .default_value("1")
+        )
+        .arg(
+            Arg::new("cache_size")
+                .short('c')
+                .value_name("The Cache Size")
+                .default_value("4")
         );
+
+
     let matches = m.get_matches();
 
     let trace_path = matches
         .get_one::<String>("trace")
         .expect("Trace File Not Found");
-    let _lease_table_path = matches
+    let lease_table_path = matches
         .get_one::<String>("lease_table")
         .expect("lease_table File Not Found");
 
-    // let file_path = lease_table_path.as_str();
-    let file_path = "./fakeTable.csv";
-
-    let test_table = LeaseTable::new(file_path);
-
-    // let trace_path = "./trace.csv";
+    let test_table = LeaseTable::new(lease_table_path);
 
     let test_trace = Trace::new(trace_path);
+    let associativity = matches.get_one::<String>("associativity").expect("Error in getting associativity").parse::<u64>().expect("Error in parsing associativity");
+    let cache_size = matches.get_one::<String>("cache_size").expect("Error in getting cache size").parse::<u64>().expect("Error in parsing cache size");
+    let offset = matches.get_one::<String>("offset").expect("Error in getting offset").parse::<u64>().expect("Error in parsing offset");
+    let set = matches.get_one::<String>("set").expect("Error in getting set").parse::<u64>().expect("Error in parsing set");
+    let is_virtual = matches.get_one::<String>("virtual").unwrap_or(&"0".to_string()).parse::<u64>().expect("Error in parsing virtual");
 
-    let test_cache = Cache::new(4, 2);
 
-    // test_cache.run_trace(test_trace, &test_table, 2, 1);
-    run_trace(test_cache, test_trace, &test_table, 2, 1);
+    println!("Current Parameters:");
+    println!("Trace Path: {}", trace_path);
+    println!("Lease Table Path: {}", lease_table_path);
+    println!("Associativity: {}", associativity);
+    println!("Cache Size: {}", cache_size);
+    println!("Offset: {}", offset);
+    println!("Set: {}", set);
+    println!("Is Virtual: {}", is_virtual);
+
+    let start = Instant::now(); // Start timing
+
+    if  is_virtual == 1{
+        let test_cache = VirtualCache::new(associativity);
+        run_trace_virtual(test_cache, test_trace, &test_table, offset, set);
+    }else {
+        let test_cache = Cache::new(cache_size, associativity);
+        run_trace(test_cache, test_trace, &test_table, offset, set);
+    }
+
+    let duration = start.elapsed(); // End timing
+
+    println!("Time elapsed is: {:?}", duration);
 }

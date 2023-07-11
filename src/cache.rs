@@ -129,29 +129,18 @@ impl Cache {
             .open(output_file)
             .unwrap();
 
-        writeln!(file, "The cache status:")?;
-        writeln!(file, "******************************").unwrap();
         //calculate the total num of cache blocks in every set
         let mut total = 0;
         self.sets.iter().for_each(|set| {
             total += set.blocks.len();
         });
 
-        //print out the current step, total num of cache blocks, and the total num of forced eviction
-        writeln!(
-            file,
-            "step: {}, physical cache size: {}, num of forced eviction: {}",
-            self.step, total, self.forced_eviction_counter
-        ).unwrap();
+        writeln!(file, "----The cache status: step: {}, physical cache size: {}, num of forced eviction: {}",  self.step, total, self.forced_eviction_counter)?;
 
-        self.sets.iter().for_each(|set| {
-            writeln!(file, "------------------------------").expect("TODO: panic message");
-            // set.blocks.iter().for_each(|block| block.print());
+        self.sets.iter().enumerate().filter(|(_, set)| !set.blocks.is_empty()).for_each(|(index, set)| {
+            writeln!(file, "*CacheSet index: {}", index).unwrap();
             set.blocks.iter().for_each(|block| writeln!(file, "{}", block.print()).unwrap());
         });
-
-        // write two empty lines
-        writeln!(file, "\n\n")?;
 
         Ok(())
     }
