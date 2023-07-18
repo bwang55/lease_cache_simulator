@@ -1,6 +1,6 @@
+use crate::cache::CacheBlock;
 use std::io;
 use std::io::Write;
-use crate::cache::CacheBlock;
 
 struct VirtualCacheSet {
     blocks: Vec<CacheBlock>,
@@ -8,9 +8,7 @@ struct VirtualCacheSet {
 
 impl VirtualCacheSet {
     fn new() -> VirtualCacheSet {
-        VirtualCacheSet {
-            blocks: Vec::new(),
-        }
+        VirtualCacheSet { blocks: Vec::new() }
     }
 
     /// push a cache block to the cache set. If the cache block is already in the cache, refresh it. Otherwise, push it to the cache set.
@@ -43,11 +41,9 @@ pub struct VirtualCache {
 
 impl VirtualCache {
     pub fn new(associativity: u64) -> VirtualCache {
-        let sets: Vec<VirtualCacheSet> = (0..associativity).map(|_| VirtualCacheSet::new()).collect();
-        VirtualCache {
-            sets,
-            step: 0,
-        }
+        let sets: Vec<VirtualCacheSet> =
+            (0..associativity).map(|_| VirtualCacheSet::new()).collect();
+        VirtualCache { sets, step: 0 }
     }
 
     /// update the cache status
@@ -65,22 +61,26 @@ impl VirtualCache {
             .create(true)
             .open(output_file)?;
 
-
         // Calculate the total num of cache blocks in every set
         let mut total = 0;
         self.sets.iter().for_each(|set| {
             total += set.blocks.len();
         });
 
-        writeln!(file, "---The virtual cache status: step: {}, virtual cache size: {}", self.step, total)?;
+        writeln!(
+            file,
+            "---The virtual cache status: step: {}, virtual cache size: {}",
+            self.step, total
+        )?;
 
         self.sets.iter().for_each(|set| {
             writeln!(file, "------------------------------").expect("TODO: panic message");
             // set.blocks.iter().for_each(|block| block.print());
-            set.blocks.iter().for_each(|block| writeln!(file, "{}", block.print()).unwrap());
+            set.blocks
+                .iter()
+                .for_each(|block| writeln!(file, "{}", block.print()).unwrap());
         });
 
         Ok(())
     }
 }
-

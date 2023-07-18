@@ -30,6 +30,7 @@ impl CacheBlock {
     }
 
     pub fn print(&self) -> String {
+        //impl the debug trait, try fmt::Display not fmt::Debug
         format!(
             "address: {:b}, tag: {:b}, set_index: {:b}, block_offset: {:b}, remaining_lease: {}, tenancy: {}",
             self.address,
@@ -67,8 +68,7 @@ impl CacheSet {
             }
         }
 
-
-        // if cache is full, evict
+        // if cache is full, evict ----------------------------------------
         if self.blocks.len() == self.block_num as usize {
             self.random_evict();
             self.blocks.push(new_block);
@@ -103,7 +103,9 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(size: u64, associativity: u64) -> Cache {
-        let sets: Vec<CacheSet> = (0..associativity).map(|_| CacheSet::new(size / associativity)).collect();
+        let sets: Vec<CacheSet> = (0..associativity)
+            .map(|_| CacheSet::new(size / associativity))
+            .collect();
         Cache {
             _size: size,
             sets,
@@ -119,7 +121,7 @@ impl Cache {
         let set_index = block.set_index as usize;
         self.sets[set_index].push_to_set(block);
         self.step += 1;
-        self.forced_eviction_counter += self.sets[set_index].forced_eviction;
+        self.forced_eviction_counter += self.sets[set_index].forced_eviction; //double counting
     }
 
     pub fn print(&self, output_file: &str) -> io::Result<()> {
@@ -135,12 +137,22 @@ impl Cache {
             total += set.blocks.len();
         });
 
-        writeln!(file, "----The cache status: step: {}, physical cache size: {}, num of forced eviction: {}",  self.step, total, self.forced_eviction_counter)?;
+        writeln!(
+            file,
+            "----The cache status: step: {}, physical cache size: {}, num of forced eviction: {}",
+            self.step, total, self.forced_eviction_counter
+        )?;
 
-        self.sets.iter().enumerate().filter(|(_, set)| !set.blocks.is_empty()).for_each(|(index, set)| {
-            writeln!(file, "*CacheSet index: {}", index).unwrap();
-            set.blocks.iter().for_each(|block| writeln!(file, "{}", block.print()).unwrap());
-        });
+        self.sets
+            .iter()
+            .enumerate()
+            .filter(|(_, set)| !set.blocks.is_empty())
+            .for_each(|(index, set)| {
+                writeln!(file, "*CacheSet index: {}", index).unwrap();
+                set.blocks
+                    .iter()
+                    .for_each(|block| writeln!(file, "{}", block.print()).unwrap());
+            });
 
         Ok(())
     }

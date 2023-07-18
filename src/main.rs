@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::fs::File;
+use std::io;
+use std::io::{BufRead, BufReader};
 use std::time::Instant;
 
 use clap::{Arg, Command};
+use csv::{ReaderBuilder, StringRecord};
 use rand::Rng;
 
 use crate::cache::{Cache, CacheBlock};
@@ -66,32 +69,45 @@ impl TraceItem {
 }
 
 struct Trace {
-    accesses: Vec<TraceItem>,
+    reader: csv::Reader<BufReader<File>>,
+    current_record: Option<csv::Result<StringRecord>>,
 }
 
 impl Trace {
-    fn read_from_csv(file_path: &str) -> Trace {
-        let file = File::open(file_path).unwrap();
-        let mut rdr = csv::ReaderBuilder::new().from_reader(file);
-        let mut result: Vec<TraceItem> = Vec::new();
-        for results in rdr.records() {
-            let record = results.expect("Error reading CSV record");
-            let access_tag =
-                u64::from_str_radix(&record[0][2..], 16).expect("Error parsing access_tag");
-            let reference =
-                u64::from_str_radix(&record[1][2..], 16).expect("Error parsing reference");
-            result.push(TraceItem::new(access_tag, reference));
-        }
-        Trace { accesses: result }
-    }
-
-    fn new(filename: &str) -> Trace {
-        Trace::read_from_csv(filename)
+    fn new(file_path: &str) -> io::Result<Self> {
+        let file = File::open(file_path)?;
+        let mut reader = ReaderBuilder::new().from_reader(BufReader::new(file));
+        let current_record = reader.records().next();
+        Ok(Trace {
+            reader,
+            current_record,
+        })
     }
 }
 
+impl Iterator for Trace {
+    type Item = TraceItem;
 
-fn pack_to_cache_block(
+    fn next(&mut self) -> Option<Self::Item> {
+        let record = match &self.current_record {
+            Some(Ok(record)) => record,
+            Some(Err(_)) | None => return None, // error reading or no more records in CSV file
+        };
+
+        let access_tag =
+            u64::from_str_radix(&record[0][2..], 16).expect("Error parsing access_tag");
+        let reference = u64::from_str_radix(&record[1][2..], 16).expect("Error parsing reference");
+        let item = TraceItem::new(access_tag, reference);
+
+        // move to the next record in CSV file
+        self.current_record = self.reader.records().next();
+
+        Some(item)
+    }
+}
+
+fn init_cache_block(
+    //change the name here
     input: &TraceItem,
     offset: u64,
     set: u64,
@@ -100,7 +116,7 @@ fn pack_to_cache_block(
     let mut result = CacheBlock::new();
     result.address = input.access_tag;
     result.block_offset = input.access_tag & ((1 << offset) - 1); // ((1 << offset) - 1) = 11
-    // println!("block_offset: {:b}, input.access_tag: {:b}, thing: {:b}", result.block_offset, input.access_tag, ((1 << offset) - 1));
+                                                                  // println!("block_offset: {:b}, input.access_tag: {:b}, thing: {:b}", result.block_offset, input.access_tag, ((1 << offset) - 1));
     result.set_index = (input.access_tag >> offset) & ((1 << set) - 1);
     // println!("set_index: {:b}, input.access_tag: {:b}, thing: {:b}", result.set_index, input.access_tag, ((1 << set) - 1));
     result.tag = input.access_tag >> (offset + set);
@@ -119,10 +135,9 @@ fn pack_to_cache_block(
     Ok(result)
 }
 
-fn run_trace(mut cache: Cache, trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
-    // let mut test_cache = cache;
-    for i in 0..trace.accesses.len() {
-        let result = pack_to_cache_block(&trace.accesses[i], offset, set, table);
+fn run_trace(mut cache: Cache, mut trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
+    while let Some(trace_item) = trace.next() {
+        let result = init_cache_block(&trace_item, offset, set, table);
         match result {
             Ok(block) => {
                 cache.update(block);
@@ -135,10 +150,15 @@ fn run_trace(mut cache: Cache, trace: Trace, table: &LeaseTable, offset: u64, se
     }
 }
 
-fn run_trace_virtual(mut cache: VirtualCache, trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
-    // let mut test_cache = cache;
-    for i in 0..trace.accesses.len() {
-        let result = pack_to_cache_block(&trace.accesses[i], offset, set, table);
+fn run_trace_virtual(
+    mut cache: VirtualCache,
+    mut trace: Trace,
+    table: &LeaseTable,
+    offset: u64,
+    set: u64,
+) {
+    while let Some(trace_item) = trace.next() {
+        let result = init_cache_block(&trace_item, offset, set, table);
         match result {
             Ok(block) => {
                 cache.update(block);
@@ -150,7 +170,6 @@ fn run_trace_virtual(mut cache: VirtualCache, trace: Trace, table: &LeaseTable, 
         }
     }
 }
-
 
 fn main() {
     let m = Command::new("CLAM Simulator")
@@ -159,43 +178,44 @@ fn main() {
         .arg(
             Arg::new("trace")
                 .short('t')
-                .value_name("The path of trace file").default_value("./trace.csv"),
+                .value_name("The path of trace file")
+                .default_value("./trace.csv"),
         )
         .arg(
             Arg::new("lease_table")
-                .short('l').default_value("./fakeTable.csv")
+                .short('l')
+                .default_value("./fakeTable.csv")
                 .value_name("The path of lease table file"),
         )
         .arg(
             Arg::new("virtual")
                 .short('v')
-                .value_name("whether to use virtual cache")
+                .value_name("whether to use virtual cache"),
         )
         .arg(
             Arg::new("associativity")
                 .short('a')
                 .value_name("The associativity of the cache")
-                .default_value("4")
+                .default_value("4"),
         )
         .arg(
             Arg::new("offset")
                 .short('o')
                 .value_name("The length of the block offset")
-                .default_value("2")
+                .default_value("2"),
         )
         .arg(
             Arg::new("set")
                 .short('s')
                 .value_name("The length of set index")
-                .default_value("1")
+                .default_value("1"),
         )
         .arg(
             Arg::new("cache_size")
                 .short('c')
                 .value_name("The Cache Size")
-                .default_value("4")
+                .default_value("4"),
         );
-
 
     let matches = m.get_matches();
 
@@ -209,12 +229,31 @@ fn main() {
     let test_table = LeaseTable::new(lease_table_path);
 
     let test_trace = Trace::new(trace_path);
-    let associativity = matches.get_one::<String>("associativity").expect("Error in getting associativity").parse::<u64>().expect("Error in parsing associativity");
-    let cache_size = matches.get_one::<String>("cache_size").expect("Error in getting cache size").parse::<u64>().expect("Error in parsing cache size");
-    let offset = matches.get_one::<String>("offset").expect("Error in getting offset").parse::<u64>().expect("Error in parsing offset");
-    let set = matches.get_one::<String>("set").expect("Error in getting set").parse::<u64>().expect("Error in parsing set");
-    let is_virtual = matches.get_one::<String>("virtual").unwrap_or(&"0".to_string()).parse::<u64>().expect("Error in parsing virtual");
-
+    let associativity = matches
+        .get_one::<String>("associativity")
+        .expect("Error in getting associativity")
+        .parse::<u64>()
+        .expect("Error in parsing associativity");
+    let cache_size = matches
+        .get_one::<String>("cache_size")
+        .expect("Error in getting cache size")
+        .parse::<u64>()
+        .expect("Error in parsing cache size");
+    let offset = matches
+        .get_one::<String>("offset")
+        .expect("Error in getting offset")
+        .parse::<u64>()
+        .expect("Error in parsing offset");
+    let set = matches
+        .get_one::<String>("set")
+        .expect("Error in getting set")
+        .parse::<u64>()
+        .expect("Error in parsing set");
+    let is_virtual = matches
+        .get_one::<String>("virtual")
+        .unwrap_or(&"0".to_string())
+        .parse::<u64>()
+        .expect("Error in parsing virtual");
 
     println!("Current Parameters:");
     println!("Trace Path: {}", trace_path);
@@ -227,12 +266,12 @@ fn main() {
 
     let start = Instant::now(); // Start timing
 
-    if  is_virtual == 1{
+    if is_virtual == 1 {
         let test_cache = VirtualCache::new(associativity);
-        run_trace_virtual(test_cache, test_trace, &test_table, offset, set);
-    }else {
+        run_trace_virtual(test_cache, test_trace.unwrap(), &test_table, offset, set);
+    } else {
         let test_cache = Cache::new(cache_size, associativity);
-        run_trace(test_cache, test_trace, &test_table, offset, set);
+        run_trace(test_cache, test_trace.unwrap(), &test_table, offset, set);
     }
 
     let duration = start.elapsed(); // End timing
