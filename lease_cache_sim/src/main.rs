@@ -211,8 +211,8 @@ fn run_trace_virtual(
 
 fn main() {
     let m = Command::new("CLAM Simulator")
-        .author("_intentionally leave for blank")
-        .version("1.0")
+        .author("Benjamin Reber, Woody Wu, Boyang Wang")
+        .version("1.1")
         .arg(
             Arg::new("trace")
                 .short('t')
