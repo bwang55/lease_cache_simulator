@@ -47,6 +47,7 @@ struct CacheSet {
     block_num: u64,
     blocks: Vec<CacheBlock>,
     forced_eviction: u64,
+    miss: i32,
 }
 
 impl CacheSet {
@@ -55,6 +56,7 @@ impl CacheSet {
             block_num: size,
             blocks: Vec::new(),
             forced_eviction: 0,
+            miss: 0,
         }
     }
 
@@ -68,13 +70,13 @@ impl CacheSet {
             }
         }
 
+        self.miss += 1;
+
         // if cache is full, evict ----------------------------------------
         if self.blocks.len() == self.block_num as usize {
             self.random_evict();
-            self.blocks.push(new_block);
-        } else {
-            self.blocks.push(new_block);
         }
+        self.blocks.push(new_block);
     }
 
     fn random_evict(&mut self) -> CacheBlock {
@@ -99,6 +101,7 @@ pub struct Cache {
     sets: Vec<CacheSet>,
     step: u64,
     forced_eviction_counter: u64,
+    miss_counter: u64,
 }
 
 impl Cache {
@@ -111,6 +114,7 @@ impl Cache {
             sets,
             step: 0,
             forced_eviction_counter: 0,
+            miss_counter: 0,
         }
     }
 
@@ -122,6 +126,9 @@ impl Cache {
         self.sets[set_index].push_to_set(block);
         self.step += 1;
         self.forced_eviction_counter += self.sets[set_index].forced_eviction; //double counting
+        self.miss_counter += self.sets[set_index].miss as u64;
+        self.sets[set_index].forced_eviction = 0;
+        self.sets[set_index].miss = 0;
     }
 
     pub fn print(&self, output_file: &str) -> io::Result<()> {
@@ -139,8 +146,8 @@ impl Cache {
 
         writeln!(
             file,
-            "----The cache status: step: {}, physical cache size: {}, num of forced eviction: {}",
-            self.step, total, self.forced_eviction_counter
+            "----The cache status: step: {}, physical cache size: {}, num of forced eviction: {}, num of misses: {}",
+            self.step, total, self.forced_eviction_counter, self.miss_counter
         )?;
 
         self.sets
@@ -155,5 +162,9 @@ impl Cache {
             });
 
         Ok(())
+    }
+
+    pub(crate) fn calculate_miss_ratio(&self) -> f64 {
+        self.miss_counter as f64 / self.step as f64
     }
 }

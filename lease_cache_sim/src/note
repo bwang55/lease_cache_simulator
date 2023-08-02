@@ -1,0 +1,4 @@
+1. virtual cache Tenancy Distribution, In order to evaluate the new model.
+2. Fixing the issue of the virtual cache
+3. Fixing force eviction counter
+4. Verify miss ratio from the lease cache with the hardware result (Talk to Ben)

@@ -15,6 +15,7 @@ mod cache;
 mod virtualCache;
 
 //read lease table from csv file and store it in a hashmap, waiting for further query
+#[derive(Debug)]
 struct LeaseTable {
     table: HashMap<u64, (u64, u64, f64)>,
 }
@@ -45,8 +46,40 @@ impl LeaseTable {
         LeaseTable { table: result }
     }
 
+    fn read_lease_look_up_table_from_txt(file_path: &str) -> LeaseTable {
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        let mut result: HashMap<u64, (u64, u64, f64)> = HashMap::new();
+
+        //skip the first two line
+        let mut lines = reader.lines().skip(2);
+
+        // Now, start reading the actual data
+        while let Some(Ok(line)) = lines.next() {
+            let parts: Vec<&str> = line.split(',').collect();
+
+            // Parse the data
+            let access_tag =
+                u64::from_str_radix(parts[1].trim_start(), 16).expect("Error parsing access_tag");
+            let short_lease =
+                u64::from_str_radix(parts[2].trim_start(), 16).expect("Error parsing short_lease");
+            let long_lease =
+                u64::from_str_radix(parts[3].trim_start(), 16).expect("Error parsing long_lease");
+            let short_prob = parts[4]
+                .trim()
+                .parse::<f64>()
+                .expect("Error parsing short_prob");
+
+            // println!("access_tag: {:x}, short_lease: {:x}, long_lease: {:x}, short_prob: {}", access_tag, short_lease, long_lease, short_prob);
+
+            result.insert(access_tag, (short_lease, long_lease, short_prob));
+        }
+
+        LeaseTable { table: result }
+    }
+
     fn new(filename: &str) -> LeaseTable {
-        LeaseTable::read_lease_look_up_table_from_csv(filename)
+        LeaseTable::read_lease_look_up_table_from_txt(filename)
     }
 
     fn query(&self, access_tag: &u64) -> Option<(u64, u64, f64)> {
@@ -94,9 +127,10 @@ impl Iterator for Trace {
             Some(Err(_)) | None => return None, // error reading or no more records in CSV file
         };
 
+        // Parsing only the necessary fields
         let access_tag =
-            u64::from_str_radix(&record[0][2..], 16).expect("Error parsing access_tag");
-        let reference = u64::from_str_radix(&record[1][2..], 16).expect("Error parsing reference");
+            u64::from_str_radix(&record[2][2..], 16).expect("Error parsing access_tag");
+        let reference = u64::from_str_radix(&record[0][2..], 16).expect("Error parsing reference");
         let item = TraceItem::new(access_tag, reference);
 
         // move to the next record in CSV file
@@ -141,13 +175,15 @@ fn run_trace(mut cache: Cache, mut trace: Trace, table: &LeaseTable, offset: u64
         match result {
             Ok(block) => {
                 cache.update(block);
-                cache.print("./test.txt").expect("TODO: panic message");
+                // cache.print("./test.txt").expect("TODO: panic message");
             }
             Err(_) => {
                 println!("Error in packing cache block");
             }
         }
     }
+    //print miss ratio
+    println!("Miss ratio: {}", cache.calculate_miss_ratio());
 }
 
 fn run_trace_virtual(
@@ -162,13 +198,15 @@ fn run_trace_virtual(
         match result {
             Ok(block) => {
                 cache.update(block);
-                cache.print("./test.txt").expect("TODO: panic message");
+                // cache.print("./testVirtual.txt").expect("TODO: panic message");
             }
             Err(_) => {
                 println!("Error in packing cache block");
             }
         }
     }
+    //print miss ratio
+    println!("Miss ratio: {}", cache.calculate_miss_ratio());
 }
 
 fn main() {
@@ -179,12 +217,12 @@ fn main() {
             Arg::new("trace")
                 .short('t')
                 .value_name("The path of trace file")
-                .default_value("./trace.csv"),
+                .default_value("../testInput/trace.txt"),
         )
         .arg(
             Arg::new("lease_table")
                 .short('l')
-                .default_value("./fakeTable.csv")
+                .default_value("../testInput/testTable.txt")
                 .value_name("The path of lease table file"),
         )
         .arg(
@@ -202,19 +240,19 @@ fn main() {
             Arg::new("offset")
                 .short('o')
                 .value_name("The length of the block offset")
-                .default_value("2"),
+                .default_value("3"),
         )
         .arg(
             Arg::new("set")
                 .short('s')
                 .value_name("The length of set index")
-                .default_value("1"),
+                .default_value("2"),
         )
         .arg(
             Arg::new("cache_size")
                 .short('c')
                 .value_name("The Cache Size")
-                .default_value("4"),
+                .default_value("16"),
         );
 
     let matches = m.get_matches();
@@ -227,6 +265,7 @@ fn main() {
         .expect("lease_table File Not Found");
 
     let test_table = LeaseTable::new(lease_table_path);
+    println!("lease table: {:?}", test_table);
 
     let test_trace = Trace::new(trace_path);
     let associativity = matches
