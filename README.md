@@ -1,4 +1,4 @@
-# CLAM simulator
+# CLAM simulator🔖
 CLAMsimulator is a lease cache simulator written in Rust. It allows you to simulate the behavior of a cache and analyze cache hits, misses, and forced evictions based on the given input trace and cache configuration.
 
 ## Features
