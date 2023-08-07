@@ -73,12 +73,12 @@ pub fn tracing_ri(code: &mut Rc<Node>) -> Hist {
     trace_ri(code, &mut lat_hash, &[], &mut hist, &mut csv);
 
     println!("Writing to file...");
-    let mut file = File::create("output.txt").expect("Unable to create file");
+    let mut file = File::create("out/output.txt").expect("Unable to create file");
     file.write_all(csv.as_bytes())
         .expect("Unable to write data");
 
     let hist_data = hist.to_string();
-    let mut hist_file = File::create("hist_output.txt").expect("Unable to create hist file");
+    let mut hist_file = File::create("out/hist_output.txt").expect("Unable to create hist file");
     hist_file
         .write_all(hist_data.as_bytes())
         .expect("Unable to write hist data");
@@ -122,10 +122,8 @@ fn trace_ri(
             hist.add_dist(ri);
             COUNTER.fetch_add(1, Ordering::Relaxed);
             let ref_label = format!("{:08x}", ary_ref.ref_id.unwrap());
-            let reuse_interval = ri.map_or("-1".to_string(), |ri| format!("{:08x}", ri));
-            if reuse_interval == "-1" {
-                return;
-            }
+            let reuse_interval = ri.map_or("ffffffff".to_string(), |ri| format!("{:08x}", ri));
+
             let addr_str = format!("{:08x}", addr);
             let local_counter_str = local_counter.to_string();
 
@@ -136,22 +134,26 @@ fn trace_ri(
             csv.push_str(&line);
         }
         Stmt::Loop(aloop) => {
-            if let LoopBound::Fixed(lb) = aloop.lb {
-                if let LoopBound::Fixed(ub) = aloop.ub {
-                    (lb..ub).for_each(|i| {
-                        aloop.body.iter().for_each(|stmt| {
-                            let mut myvec = ivec.to_owned();
-                            myvec.push(i);
-                            trace_ri(stmt, lat_hash, &myvec, hist, csv)
-                        })
-                    })
-                } else {
-                    panic!("dynamic loop upper bound is not supported")
-                }
-            } else {
-                panic!("dynamic loop lower bound is not supported")
+            let mut i = match &aloop.lb {
+                LoopBound::Fixed(lb) => *lb,
+                LoopBound::Dynamic(lb) => lb(ivec),
+            };
+            let ub = match &aloop.ub {
+                LoopBound::Fixed(ub) => *ub,
+                LoopBound::Dynamic(ub) => ub(ivec),
+            };
+
+            while (aloop.test)(i, ub) {
+                aloop.body.iter().for_each(|stmt| {
+                    let mut myvec = ivec.to_owned();
+                    myvec.push(i);
+                    trace_ri(stmt, lat_hash, &myvec, hist, csv)
+                });
+                i = (aloop.step)(i);
             }
         }
+
+
         Stmt::Block(blk) => blk
             .iter()
             .for_each(|s| trace_ri(s, lat_hash, ivec.clone(), hist, csv)),
