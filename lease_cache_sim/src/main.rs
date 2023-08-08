@@ -9,10 +9,10 @@ use csv::{ReaderBuilder, StringRecord};
 use rand::Rng;
 
 use crate::cache::{Cache, CacheBlock};
-use crate::virtualCache::VirtualCache;
+use crate::virtual_cache::VirtualCache;
 
 mod cache;
-mod virtualCache;
+mod virtual_cache;
 
 //read lease table from csv file and store it in a hashmap, waiting for further query
 #[derive(Debug)]
@@ -21,6 +21,7 @@ struct LeaseTable {
 }
 
 impl LeaseTable {
+    #[allow(unused)]
     fn read_lease_look_up_table_from_csv(file_path: &str) -> LeaseTable {
         let file = File::open(file_path).unwrap();
         let mut rdr = csv::ReaderBuilder::new().from_reader(file);

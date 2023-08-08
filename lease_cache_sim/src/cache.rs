@@ -6,6 +6,7 @@ use rand::Rng;
 // use crate::{LeaseTable, pack_to_cache_block, Trace};
 
 #[derive(Debug, Clone, Copy)]
+#[allow(unused)]
 pub struct CacheBlock {
     _size: u64,
     pub address: u64,
@@ -131,6 +132,7 @@ impl Cache {
         self.sets[set_index].miss = 0;
     }
 
+    #[allow(unused)]
     pub fn print(&self, output_file: &str) -> io::Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .append(true)

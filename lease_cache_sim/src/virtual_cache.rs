@@ -43,6 +43,7 @@ impl VirtualCache {
         self.step += 1;
     }
 
+    #[allow(unused)]
     pub fn print(&self, output_file: &str) -> io::Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .append(true)
