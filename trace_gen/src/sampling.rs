@@ -73,12 +73,12 @@ pub fn tracing_ri(code: &mut Rc<Node>) -> Hist {
     trace_ri(code, &mut lat_hash, &[], &mut hist, &mut csv);
 
     println!("Writing to file...");
-    let mut file = File::create("out/output.txt").expect("Unable to create file");
+    let mut file = File::create("output.txt").expect("Unable to create file");
     file.write_all(csv.as_bytes())
         .expect("Unable to write data");
 
     let hist_data = hist.to_string();
-    let mut hist_file = File::create("out/hist_output.txt").expect("Unable to create hist file");
+    let mut hist_file = File::create("hist_output.txt").expect("Unable to create hist file");
     hist_file
         .write_all(hist_data.as_bytes())
         .expect("Unable to write hist data");

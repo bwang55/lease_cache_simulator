@@ -6,10 +6,11 @@ use dace_tests::matmul;
 use dace_tests::polybench::{
     _2mm, _3mm, cholesky, gemm, gramschmidt_trace, lu, mvt, syr2d, syrk, trisolv, trmm_trace,
 };
-use std::{env, time::Instant};
+use std::{env, fs, time::Instant};
 use tracing_subscriber::EnvFilter;
 
 fn main() {
+    env::set_var("RUST_BACKTRACE", "1");
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("Format:   exe   test_mode   data1,data2,data3,data4,...")
@@ -63,5 +64,10 @@ fn main() {
     let start = Instant::now();
     let _hist = sampling::tracing_ri(&mut trace);
     let end = Instant::now();
+    let t_mode = &args[1];
+    let argdata = &args[2];
+
+    let folder_name = format!("{}_{}", t_mode, argdata.replace(",", "_"));
+    fs::create_dir_all(&folder_name).expect("Failed to create the output folder.");
     println!("trace time: {:?}", end - start);
 }

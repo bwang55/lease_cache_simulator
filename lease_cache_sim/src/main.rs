@@ -234,25 +234,25 @@ fn main() {
             Arg::new("associativity")
                 .short('a')
                 .value_name("The associativity of the cache")
-                .default_value("4"),
+                .default_value("128"),
         )
         .arg(
             Arg::new("offset")
                 .short('o')
                 .value_name("The length of the block offset")
-                .default_value("3"),
+                .default_value("2"),
         )
         .arg(
             Arg::new("set")
                 .short('s')
                 .value_name("The length of set index")
-                .default_value("2"),
+                .default_value("7"),
         )
         .arg(
             Arg::new("cache_size")
                 .short('c')
                 .value_name("The Cache Size")
-                .default_value("16"),
+                .default_value("128"),
         );
 
     let matches = m.get_matches();
@@ -265,7 +265,7 @@ fn main() {
         .expect("lease_table File Not Found");
 
     let test_table = LeaseTable::new(lease_table_path);
-    println!("lease table: {:?}", test_table);
+    // println!("lease table: {:?}", test_table);
 
     let test_trace = Trace::new(trace_path);
     let associativity = matches
@@ -294,14 +294,14 @@ fn main() {
         .parse::<u64>()
         .expect("Error in parsing virtual");
 
-    println!("Current Parameters:");
-    println!("Trace Path: {}", trace_path);
-    println!("Lease Table Path: {}", lease_table_path);
-    println!("Associativity: {}", associativity);
-    println!("Cache Size: {}", cache_size);
-    println!("Offset: {}", offset);
-    println!("Set: {}", set);
-    println!("Is Virtual: {}", is_virtual);
+    print!("Current Parameters:");
+    print!("Trace Path: {}  ", trace_path);
+    print!("Lease Table Path: {}  ", lease_table_path);
+    print!("Associativity: {}  ", associativity);
+    print!("Cache Size: {}  ", cache_size);
+    print!("Offset: {}  ", offset);
+    print!("Set: {}  ", set);
+    println!("Is Virtual: {}  ", is_virtual);
 
     let start = Instant::now(); // Start timing
 
