@@ -185,6 +185,7 @@ fn run_trace(mut cache: Cache, mut trace: Trace, table: &LeaseTable, offset: u64
     }
     //print miss ratio
     println!("Miss ratio: {}", cache.calculate_miss_ratio());
+    println!("Force Eviction: {} / {} ({})", cache.forced_eviction_counter, cache.step, cache.forced_eviction_counter as f64 / cache.step as f64);
 }
 
 fn run_trace_virtual(

@@ -100,8 +100,8 @@ impl CacheSet {
 pub struct Cache {
     _size: u64,
     sets: Vec<CacheSet>,
-    step: u64,
-    forced_eviction_counter: u64,
+    pub(crate) step: u64,
+    pub(crate) forced_eviction_counter: u64,
     miss_counter: u64,
 }
 

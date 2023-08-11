@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "lease_cache_sim",
     "trace_gen",
+    "virtual_cache_analyzer",
 ]
 
 [profile.release]
