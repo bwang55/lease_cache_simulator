@@ -91,13 +91,15 @@ impl LeaseTable {
 struct TraceItem {
     access_tag: u64,
     reference: u64,
+    reuse_interval: u64,
 }
 
 impl TraceItem {
-    fn new(access_tag: u64, reference: u64) -> TraceItem {
+    fn new(access_tag: u64, reference: u64, reuse_interval:u64) -> TraceItem {
         TraceItem {
             access_tag,
             reference,
+            reuse_interval
         }
     }
 }
@@ -132,7 +134,8 @@ impl Iterator for Trace {
         let access_tag =
             u64::from_str_radix(&record[2][2..], 16).expect("Error parsing access_tag");
         let reference = u64::from_str_radix(&record[0][2..], 16).expect("Error parsing reference");
-        let item = TraceItem::new(access_tag, reference);
+        let reuse_interval = u64::from_str_radix(&record[1][2..], 16).expect("Error parsing reuse_interval");
+        let item = TraceItem::new(access_tag, reference, reuse_interval);
 
         // move to the next record in CSV file
         self.current_record = self.reader.records().next();
@@ -211,6 +214,42 @@ fn run_trace_virtual(
     println!("Miss ratio: {}", cache.calculate_miss_ratio());
 }
 
+fn run_trace_virtual_predict(
+    mut trace: Trace,
+    table: &LeaseTable,
+) {
+    let mut hit: u64 = 0;
+    let mut miss: u64 = 0;
+    let mut total: u64 = 0;
+    while let Some(trace_item) = trace.next() {
+        let lease = table
+            .query(&trace_item.reference)
+            .expect("Error in query lease for the access");
+        //randomly assign remaining_lease according to probability at lease.3
+        let mut random = rand::thread_rng();
+        let mut lease_assigned = 0;
+        if random.gen::<f64>() < lease.2 {
+            lease_assigned = lease.0;
+        } else {
+            lease_assigned = lease.1;
+        }
+        //Any RI which is greater than the lease is a miss, any one which is less than or equal to the lease is a hit
+        if &trace_item.reuse_interval <= &lease_assigned {
+            hit += 1;
+        } else {
+            miss += 1;
+        }
+        total += 1;
+
+    }
+
+    if hit + miss != total {
+        println!("Error in hit/miss calculation");
+        panic!("Error in hit/miss calculation")
+    }
+    println!("Miss ratio: {}", miss as f64 / total as f64);
+}
+
 fn main() {
     let m = Command::new("CLAM Simulator")
         .author("Benjamin Reber, Woody Wu, Boyang Wang")
@@ -228,9 +267,9 @@ fn main() {
                 .value_name("The path of lease table file"),
         )
         .arg(
-            Arg::new("virtual")
-                .short('v')
-                .value_name("whether to use virtual cache"),
+            Arg::new("Mode")
+                .short('m')
+                .value_name("The mode of the simulator, 0 for physical, 1 for virtual, 2 for virtual with prediction")
         )
         .arg(
             Arg::new("associativity")
@@ -291,7 +330,7 @@ fn main() {
         .parse::<u64>()
         .expect("Error in parsing set");
     let is_virtual = matches
-        .get_one::<String>("virtual")
+        .get_one::<String>("Mode")
         .unwrap_or(&"0".to_string())
         .parse::<u64>()
         .expect("Error in parsing virtual");
@@ -303,16 +342,18 @@ fn main() {
     print!("Cache Size: {}  ", cache_size);
     print!("Offset: {}  ", offset);
     print!("Set: {}  ", set);
-    println!("Is Virtual: {}  ", is_virtual);
+    println!("Running Mode: {}  ", is_virtual);
 
     let start = Instant::now(); // Start timing
 
-    if is_virtual == 1 {
+    if is_virtual == 0 {
         let test_cache = VirtualCache::new(associativity);
         run_trace_virtual(test_cache, test_trace.unwrap(), &test_table, offset, set);
-    } else {
+    } else if is_virtual == 1 {
         let test_cache = Cache::new(cache_size, associativity);
         run_trace(test_cache, test_trace.unwrap(), &test_table, offset, set);
+    }else if is_virtual == 2{
+        run_trace_virtual_predict(test_trace.unwrap(), &test_table);
     }
 
     let duration = start.elapsed(); // End timing

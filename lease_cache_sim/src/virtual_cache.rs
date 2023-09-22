@@ -68,9 +68,16 @@ impl VirtualCache {
         }
 
         Ok(())
+
+
     }
+
+
 
     pub(crate) fn calculate_miss_ratio(&self) -> f64 {
         self.miss_counter as f64 / self.step as f64
     }
+
+
+
 }
