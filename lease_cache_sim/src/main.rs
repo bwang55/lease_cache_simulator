@@ -179,7 +179,7 @@ fn run_trace(mut cache: Cache, mut trace: Trace, table: &LeaseTable, offset: u64
         match result {
             Ok(block) => {
                 cache.update(block);
-                // cache.print("./test.txt").expect("TODO: panic message");
+                cache.print("./test.txt").expect("TODO: panic message");
             }
             Err(_) => {
                 println!("Error in packing cache block");
@@ -203,7 +203,7 @@ fn run_trace_virtual(
         match result {
             Ok(block) => {
                 cache.update(block);
-                // cache.print("./testVirtual.txt").expect("TODO: panic message");
+                cache.print("./testVirtual.txt").expect("TODO: panic message");
             }
             Err(_) => {
                 println!("Error in packing cache block");
@@ -221,34 +221,34 @@ fn run_trace_virtual_predict(
     let mut hit: u64 = 0;
     let mut miss: u64 = 0;
     let mut total: u64 = 0;
+
     while let Some(trace_item) = trace.next() {
-        let lease = table
+        let lease_query = table
             .query(&trace_item.reference)
             .expect("Error in query lease for the access");
         //randomly assign remaining_lease according to probability at lease.3
         let mut random = rand::thread_rng();
-        let mut lease_assigned = 0;
-        if random.gen::<f64>() < lease.2 {
-            lease_assigned = lease.0;
+        let mut current_lease = 0;
+        if random.gen::<f64>() < lease_query.2 {
+            current_lease = lease_query.0;
         } else {
-            lease_assigned = lease.1;
+            current_lease = lease_query.1;
         }
-        //Any RI which is greater than the lease is a miss, any one which is less than or equal to the lease is a hit
-        if &trace_item.reuse_interval <= &lease_assigned {
+        // println!("lease_assigned: {}, reuse_interval: {}", current_lease, trace_item.reuse_interval);
+
+        // Compare the reuse_interval with the previous lease
+        if &trace_item.reuse_interval <= &current_lease {
             hit += 1;
         } else {
             miss += 1;
         }
+
         total += 1;
-
     }
 
-    if hit + miss != total {
-        println!("Error in hit/miss calculation");
-        panic!("Error in hit/miss calculation")
-    }
     println!("Miss ratio: {}", miss as f64 / total as f64);
 }
+
 
 fn main() {
     let m = Command::new("CLAM Simulator")
@@ -346,10 +346,10 @@ fn main() {
 
     let start = Instant::now(); // Start timing
 
-    if is_virtual == 0 {
+    if is_virtual == 1 {
         let test_cache = VirtualCache::new(associativity);
         run_trace_virtual(test_cache, test_trace.unwrap(), &test_table, offset, set);
-    } else if is_virtual == 1 {
+    } else if is_virtual == 0 {
         let test_cache = Cache::new(cache_size, associativity);
         run_trace(test_cache, test_trace.unwrap(), &test_table, offset, set);
     }else if is_virtual == 2{

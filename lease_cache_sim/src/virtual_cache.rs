@@ -43,7 +43,7 @@ impl VirtualCache {
         self.step += 1;
     }
 
-    #[allow(unused)]
+
     pub fn print(&self, output_file: &str) -> io::Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .append(true)
@@ -59,17 +59,17 @@ impl VirtualCache {
             self.step, total, self.miss_counter
         )?;
 
-        for (set_index, set) in self.sets.iter().enumerate() {
-            writeln!(file, "Cache set index: {}", set_index)?;
+        // for (set_index, set) in self.sets.iter().enumerate().filter(|(_, set)| !set.is_empty()) {
+        //     writeln!(file, "Cache set index: {}", set_index)?;
+        //
+        //     for block in set {
+        //         writeln!(file, "{}", block.print())?;
+        //     }
+        // }
 
-            for block in set {
-                writeln!(file, "{}", block.print())?;
-            }
-        }
-
+        //write empty line
+        writeln!(file, "")?;
         Ok(())
-
-
     }
 
 

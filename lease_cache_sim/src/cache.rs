@@ -163,6 +163,8 @@ impl Cache {
                     .for_each(|block| writeln!(file, "{}", block.print()).unwrap());
             });
 
+        //write empty line
+        writeln!(file, "")?;
         Ok(())
     }
 
