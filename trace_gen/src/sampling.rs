@@ -153,7 +153,6 @@ fn trace_ri(
             }
         }
 
-
         Stmt::Block(blk) => blk
             .iter()
             .for_each(|s| trace_ri(s, lat_hash, ivec.clone(), hist, csv)),
