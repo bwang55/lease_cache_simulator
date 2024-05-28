@@ -34,8 +34,10 @@ impl VirtualCache {
         // check if the block is already in the cache set and update it if it is
         if let Some(existing_block) = self.sets[set_index].iter_mut().find(|b| b.tag == block.tag) {
             existing_block.remaining_lease = block.remaining_lease;
+            // println!("HIT {:?}", existing_block);
         } else {
             // otherwise, push the block to the cache set
+            // println!("MISS {:?}", block);
             self.sets[set_index].push(block);
             self.miss_counter += 1;
         }

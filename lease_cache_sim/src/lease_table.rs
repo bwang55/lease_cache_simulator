@@ -219,10 +219,13 @@ pub fn run_trace_virtual_predict(mut trace: Trace, table: &LeaseTable) {
             current_lease = lease_query.1;
         }
 
+
         if &trace_item.reuse_interval <= &current_lease {
             hit += 1;
+            // println!("HIT Current Lease: {}, Reuse Interval: {}", current_lease, trace_item.reuse_interval);
         } else {
             miss += 1;
+            // println!("MISS Current Lease: {}, Reuse Interval: {}", current_lease, trace_item.reuse_interval);
         }
 
         total += 1;
