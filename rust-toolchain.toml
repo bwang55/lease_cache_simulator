@@ -1,0 +1,3 @@
+[toolchain]
+channel = "nightly"
+# Due to unstable feature of get_mut_unchecked
