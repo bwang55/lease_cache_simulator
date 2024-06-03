@@ -44,7 +44,7 @@ fn main() {
             Arg::new("offset")
                 .short('o')
                 .value_name("The length of the block offset")
-                .default_value("2"),
+                .default_value("3"),
         )
         .arg(
             Arg::new("set")
