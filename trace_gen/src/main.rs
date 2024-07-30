@@ -3,7 +3,7 @@
 mod ri_utils;
 mod sampling;
 use dace_tests::matmul;
-use dace_tests::polybench::{
+use dace_tests::polybench_simplify::{
     _2mm, _3mm, cholesky, gemm, gramschmidt_trace, lu, mvt, syr2d, syrk, trisolv, trmm_trace,
 };
 use std::{env, fs, time::Instant};

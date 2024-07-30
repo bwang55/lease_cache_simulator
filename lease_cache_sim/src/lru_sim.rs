@@ -1,7 +1,7 @@
+use crate::lease_table::Trace;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::io::Write;
-use crate::lease_table::Trace;
 
 #[derive(Debug, Clone)]
 pub struct LRUCacheBlock {

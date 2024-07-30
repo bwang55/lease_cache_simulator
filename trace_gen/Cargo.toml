@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-stack_alg_sim = { path = "../../dace/stack_alg_sim" }
+stack_alg_sim = { path = "../../dace/lru/stack_alg_sim" }
 hist = { path = "../../dace/hist" }
 dace = { path = "../../dace/dace" }
 list_serializable = { path = "../../dace/list_serializable" }

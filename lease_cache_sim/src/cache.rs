@@ -164,7 +164,7 @@ impl Cache {
             });
 
         //write empty line
-        writeln!(file, "")?;
+        writeln!(file)?;
         Ok(())
     }
 

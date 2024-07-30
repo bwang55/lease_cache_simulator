@@ -68,7 +68,8 @@ impl LeaseTable {
     }
 
     pub fn query(&self, access_tag: &u64) -> Option<(u64, u64, f64)> {
-        self.table.get(access_tag).map(|x| *x)
+        // self.table.get(access_tag).map(|x| *x)
+        self.table.get(access_tag).copied()
     }
 }
 
@@ -153,8 +154,8 @@ pub fn init_cache_block(
     Ok(result)
 }
 
-pub fn run_trace(mut cache: Cache, mut trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
-    while let Some(trace_item) = trace.next() {
+pub fn run_trace(mut cache: Cache, trace: Trace, table: &LeaseTable, offset: u64, set: u64) {
+    for trace_item in trace {
         let result = init_cache_block(&trace_item, offset, set, table);
         match result {
             Ok(block) => {
@@ -178,12 +179,12 @@ pub fn run_trace(mut cache: Cache, mut trace: Trace, table: &LeaseTable, offset:
 
 pub fn run_trace_virtual(
     mut cache: VirtualCache,
-    mut trace: Trace,
+    trace: Trace,
     table: &LeaseTable,
     offset: u64,
     set: u64,
 ) {
-    while let Some(trace_item) = trace.next() {
+    for trace_item in trace {
         let result = init_cache_block(&trace_item, offset, set, table);
         match result {
             Ok(block) => {
@@ -201,26 +202,24 @@ pub fn run_trace_virtual(
     println!("Miss ratio: {}", cache.calculate_miss_ratio());
 }
 #[allow(unused_variables)]
-pub fn run_trace_virtual_predict(mut trace: Trace, table: &LeaseTable) {
+pub fn run_trace_virtual_predict(trace: Trace, table: &LeaseTable) {
     let mut hit: u64 = 0;
     let mut miss: u64 = 0;
     let mut total: u64 = 0;
 
-    while let Some(trace_item) = trace.next() {
+    for trace_item in trace {
         let lease_query = table
             .query(&trace_item.reference)
             .expect("Error in query lease for the access");
 
         let mut random = rand::thread_rng();
-        let current_lease;
-        if random.gen::<f64>() < lease_query.2 {
-            current_lease = lease_query.0;
+        let current_lease = if random.gen::<f64>() < lease_query.2 {
+            lease_query.0
         } else {
-            current_lease = lease_query.1;
-        }
+            lease_query.1
+        };
 
-
-        if &trace_item.reuse_interval < &current_lease {
+        if trace_item.reuse_interval < current_lease {
             hit += 1;
             // println!("HIT Current Lease: {}, Reuse Interval: {}", current_lease, trace_item.reuse_interval);
         } else {

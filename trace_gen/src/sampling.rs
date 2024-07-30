@@ -5,6 +5,7 @@ use dace::iter::Walk;
 use fxhash::FxHashMap;
 use hist::Hist;
 use std::collections::hash_map::Entry;
+use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::rc::Rc;
@@ -28,6 +29,7 @@ pub fn assign_ref_id(node: &mut Rc<Node>) {
     println!("number of ID assigned: {}", counter);
 }
 
+#[allow(dead_code)]
 pub fn print_tree(node: &Rc<Node>, level: usize) {
     print!("{:indent$}", "", indent = level * 2);
     match &node.stmt {
@@ -73,12 +75,13 @@ pub fn tracing_ri(code: &mut Rc<Node>) -> Hist {
     trace_ri(code, &mut lat_hash, &[], &mut hist, &mut csv);
 
     println!("Writing to file...");
-    let mut file = File::create("output.txt").expect("Unable to create file");
+    fs::create_dir_all("out").expect("Failed to create the output folder.");
+    let mut file = File::create("out/output.txt").expect("Unable to create file");
     file.write_all(csv.as_bytes())
         .expect("Unable to write data");
 
     let hist_data = hist.to_string();
-    let mut hist_file = File::create("hist_output.txt").expect("Unable to create hist file");
+    let mut hist_file = File::create("out/hist_output.txt").expect("Unable to create hist file");
     hist_file
         .write_all(hist_data.as_bytes())
         .expect("Unable to write hist data");
@@ -137,10 +140,12 @@ fn trace_ri(
             let mut i = match &aloop.lb {
                 LoopBound::Fixed(lb) => *lb,
                 LoopBound::Dynamic(lb) => lb(ivec),
+                _ => panic!("Affine loop bound not supported"),
             };
             let ub = match &aloop.ub {
                 LoopBound::Fixed(ub) => *ub,
                 LoopBound::Dynamic(ub) => ub(ivec),
+                _ => panic!("Affine loop bound not supported"),
             };
 
             while (aloop.test)(i, ub) {
@@ -155,7 +160,7 @@ fn trace_ri(
 
         Stmt::Block(blk) => blk
             .iter()
-            .for_each(|s| trace_ri(s, lat_hash, ivec.clone(), hist, csv)),
+            .for_each(|s| trace_ri(s, lat_hash, ivec, hist, csv)),
         Stmt::Branch(stmt) => {
             if (stmt.cond)(ivec) {
                 trace_ri(&stmt.then_body, lat_hash, ivec, hist, csv)

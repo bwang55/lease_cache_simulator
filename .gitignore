@@ -28,3 +28,4 @@ flamegraph.svg
 perf.data*
 
 /trace_gen/target/
+/out

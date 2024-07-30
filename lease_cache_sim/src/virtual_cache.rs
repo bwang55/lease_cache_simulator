@@ -61,7 +61,12 @@ impl VirtualCache {
             self.step, total, self.miss_counter
         )?;
 
-        for (set_index, set) in self.sets.iter().enumerate().filter(|(_, set)| !set.is_empty()) {
+        for (set_index, set) in self
+            .sets
+            .iter()
+            .enumerate()
+            .filter(|(_, set)| !set.is_empty())
+        {
             writeln!(file, "Cache set index: {}", set_index)?;
 
             for block in set {
@@ -70,7 +75,7 @@ impl VirtualCache {
         }
 
         //write empty line
-        writeln!(file, "")?;
+        writeln!(file)?;
         Ok(())
     }
 

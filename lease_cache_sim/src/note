@@ -2,3 +2,50 @@
 2. Fixing the issue of the virtual cache
 3. Fixing force eviction counter
 4. Verify miss ratio from the lease cache with the hardware result (Talk to Ben)
+
+
+
+Usage: lease_cache_sim [OPTIONS]
+
+Options:
+  -t <The path of trace file>                                                                                  [default: ../testInput/trace.txt]
+  -l <The path of lease table file>                                                                            [default: ../testInput/testTable.txt]
+  -m <The mode of the simulator, 0 for physical, 1 for virtual, 2 for virtual with prediction, 3 for LRU>      [default: 0]
+  -a <The associativity of the cache>                                                                          [default: 128]
+  -o <The length of the block offset>                                                                          [default: 2]
+  -s <The length of set index>                                                                                 [default: 7]
+  -c <The Cache Size>                                                                                          [default: 128]
+  -h, --help                                                                                                   Print help
+  -V, --version                                                                                                Print version
+
+
+/bin/bash /Users/woody/IdeaProjects/lease_cache_simulator/lease_cache_sim/src/run.sh
+woody@dyn-192-5-53-156 src % /bin/bash /Users/woody/IdeaProjects/lease_cache_simulator/lease_cache_sim/src/run.sh
+Running with -m 0: cargo run --release -- -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 0
+   Compiling lease_cache_sim v0.1.0 (/Users/woody/IdeaProjects/lease_cache_simulator/lease_cache_sim)
+    Finished `release` profile [optimized + debuginfo] target(s) in 9.76s
+     Running `/Users/woody/IdeaProjects/lease_cache_simulator/target/release/lease_cache_sim -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 0`
+Current Parameters:Trace Path: ../testInput/3mm_output.txt  Lease Table Path: ../testInput/3mm_output_shel_leases  Associativity: 128  Cache Size: 128  Offset: 2  Set: 7  Number of Sets: 128  Running Mode: 0
+Miss ratio: 0.3640725689814954
+Force Eviction: 37386 / 1628299 (0.022960156580578876)
+Time elapsed is: 763.297625ms
+Running with -m 1: cargo run --release -- -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 1
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.06s
+     Running `/Users/woody/IdeaProjects/lease_cache_simulator/target/release/lease_cache_sim -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 1`
+Current Parameters:Trace Path: ../testInput/3mm_output.txt  Lease Table Path: ../testInput/3mm_output_shel_leases  Associativity: 128  Cache Size: 128  Offset: 2  Set: 7  Number of Sets: 128  Running Mode: 1
+Miss ratio: 0.3461772070117343
+Time elapsed is: 732.1015ms
+Running with -m 2: cargo run --release -- -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 2
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.02s
+     Running `/Users/woody/IdeaProjects/lease_cache_simulator/target/release/lease_cache_sim -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 2`
+Current Parameters:Trace Path: ../testInput/3mm_output.txt  Lease Table Path: ../testInput/3mm_output_shel_leases  Associativity: 128  Cache Size: 128  Offset: 2  Set: 7  Number of Sets: 128  Running Mode: 2
+Miss ratio: 0.036463818991475154
+Time elapsed is: 459.249ms
+Running with -m 3: cargo run --release -- -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 3
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.02s
+     Running `/Users/woody/IdeaProjects/lease_cache_simulator/target/release/lease_cache_sim -l ../testInput/3mm_output_shel_leases -t ../testInput/3mm_output.txt -m 3`
+Current Parameters:Trace Path: ../testInput/3mm_output.txt  Lease Table Path: ../testInput/3mm_output_shel_leases  Associativity: 128  Cache Size: 128  Offset: 2  Set: 7  Number of Sets: 128  Running Mode: 3
+Miss ratio: 0.0017889834729370958
+Time elapsed is: 751.234417ms
+--------------------------------------
+All tests completed.
